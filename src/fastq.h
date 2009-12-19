@@ -21,6 +21,9 @@ struct _FastqSeq
   int   size;
 };
 
+extern int   fastq_qual_char_2_int[];
+extern char *fastq_qual_char_2_string[];
+
 FastqSeq*   fastq_seq_new    (void);
 
 void        fastq_seq_free   (FastqSeq *fastq);
