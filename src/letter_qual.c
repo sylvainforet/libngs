@@ -13,19 +13,32 @@ typedef struct _LetterQualData LetterQualData;
 
 struct _LetterQualData
 {
-  unsigned long int a_qual[N_QUAL];
-  unsigned long int t_qual[N_QUAL];
-  unsigned long int g_qual[N_QUAL];
-  unsigned long int c_qual[N_QUAL];
-  unsigned long int n_qual[N_QUAL];
+  unsigned long int *quals[128];
+
+  unsigned long int  a_qual[N_QUAL];
+  unsigned long int  t_qual[N_QUAL];
+  unsigned long int  g_qual[N_QUAL];
+  unsigned long int  c_qual[N_QUAL];
+  unsigned long int  n_qual[N_QUAL];
+
+  char              *input_path;
+
+  unsigned int       fast;
 };
 
-static int  iter_func             (FastqSeq        *fastq,
-                                   LetterQualData  *data);
+static void parse_args            (LetterQualData    *data,
+                                   int               *argc,
+                                   char            ***argv);
 
-static void init_letter_qual_data (LetterQualData  *data);
+static int  iter_func             (FastqSeq          *fastq,
+                                   LetterQualData    *data);
 
-static void print_letter_qual     (LetterQualData  *data);
+static int  iter_func_fast        (FastqSeq          *fastq,
+                                   LetterQualData    *data);
+
+static void init_letter_qual_data (LetterQualData    *data);
+
+static void print_letter_qual     (LetterQualData    *data);
 
 int
 main (int    argc,
@@ -34,17 +47,18 @@ main (int    argc,
   LetterQualData  data;
   GError         *error = NULL;
 
-  if (argc < 2)
-    {
-      g_printerr ("Usage: letter_qual FILE\n");
-      return 1;
-    }
+  parse_args (&data, &argc, &argv);
 
-  init_letter_qual_data (&data);
-  iter_fastq (argv[1],
-              (FastqIterFunc)iter_func,
-              &data,
-              &error);
+  if (data.fast)
+    iter_fastq (data.input_path,
+                (FastqIterFunc)iter_func_fast,
+                &data,
+                &error);
+  else
+    iter_fastq (data.input_path,
+                (FastqIterFunc)iter_func,
+                &data,
+                &error);
 
   if (error)
     {
@@ -58,13 +72,51 @@ main (int    argc,
   return 0;
 }
 
+static void
+parse_args (LetterQualData    *data,
+            int               *argc,
+            char            ***argv)
+{
+  GOptionEntry entries[] =
+    {
+      {"fast", 'f', 0, G_OPTION_ARG_NONE, &data->fast, "Faster and less robust method (use at your own risk)", NULL},
+      {NULL}
+    };
+  GError         *error = NULL;
+  GOptionContext *context;
+
+  data->fast = 0;
+
+  context = g_option_context_new ("FILE - Letter-wise distribution of quality calls");
+  g_option_context_add_main_entries (context, entries, NULL);
+  if (!g_option_context_parse (context, argc, argv, &error))
+    {
+      g_printerr ("[ERROR] Option parsing failed: %s\n", error->message);
+      exit (1);
+    }
+  g_option_context_free (context);
+
+  if (*argc < 2)
+    {
+      g_printerr ("[ERROR] No input file provided\n");
+      exit (1);
+    }
+  data->input_path = (*argv)[1];
+
+  init_letter_qual_data (data);
+}
+
+/**
+ * Slower but more robust
+ */
+
 static int
-iter_func  (FastqSeq       *fastq,
-            LetterQualData *data)
+iter_func (FastqSeq       *fastq,
+           LetterQualData *data)
 {
   unsigned int i;
 
-  for (i = 0; fastq->seq[i] && fastq->qual[i]; i++)
+  for (i = 0; i < fastq->size; i++)
     {
       unsigned long int *table = NULL;
 
@@ -103,6 +155,26 @@ iter_func  (FastqSeq       *fastq,
   return 1;
 }
 
+/**
+ * Faster but no less robust
+ */
+
+static int
+iter_func_fast (FastqSeq       *fastq,
+                LetterQualData *data)
+{
+  unsigned int i;
+
+  for (i = 0; i < fastq->size; i++)
+    {
+      const unsigned int letter = fastq->seq[i];
+      const unsigned int qual   = fastq->qual[i] - 64;
+      data->quals[letter][qual]++;
+    }
+
+  return 1;
+}
+
 static void
 init_letter_qual_data (LetterQualData  *data)
 {
@@ -118,6 +190,15 @@ init_letter_qual_data (LetterQualData  *data)
     data->c_qual[i] = 0;
   for (i = 0; i < N_QUAL; i++)
     data->n_qual[i] = 0;
+
+  if (data->fast)
+    {
+      data->quals['A'] = data->a_qual;
+      data->quals['T'] = data->t_qual;
+      data->quals['G'] = data->g_qual;
+      data->quals['C'] = data->c_qual;
+      data->quals['N'] = data->n_qual;
+    }
 }
 
 static void
