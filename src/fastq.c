@@ -2,11 +2,15 @@
  *
  */
 
-#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "fastq.h"
 
+
+static char *fastq_parser_name = NULL;
 
 int fastq_qual_char_2_int[] = 
 {
@@ -272,6 +276,16 @@ char *fastq_qual_char_2_string[] =
   " 0 "  /* 127 */
 };
 
+static void iter_fastq_simple (char         *path,
+                               FastqIterFunc func,
+                               void         *data,
+                               GError      **error);
+
+static void iter_fastq_ugly   (char         *path,
+                               FastqIterFunc func,
+                               void         *data,
+                               GError      **error);
+
 FastqSeq*
 fastq_seq_new (void)
 {
@@ -303,12 +317,32 @@ iter_fastq (char         *path,
             void         *data,
             GError      **error)
 {
+  if (fastq_parser_name == NULL || g_strcmp0 (fastq_parser_name, "simple") == 0)
+    iter_fastq_simple (path, func, data, error);
+  else if (g_strcmp0 (fastq_parser_name, "ugly") == 0)
+    iter_fastq_ugly (path, func, data, error);
+  else
+    {
+      g_printerr ("[ERROR] Unknown fastq parser: %s\n",
+                  fastq_parser_name);
+      /* TODO raise an error instead of exiting */
+      exit (1);
+    }
+}
+
+static void
+iter_fastq_simple (char         *path,
+                   FastqIterFunc func,
+                   void         *data,
+                   GError      **error)
+{
   GIOChannel *channel;
   GError     *tmp_err = NULL;
   FastqSeq   *fastq   = NULL;
   char       *line    = NULL;
   gsize       length;
   gsize       endl;
+  int         ret;
 
   if (path[0] == '-' && path[1] == '\0')
     {
@@ -359,11 +393,13 @@ iter_fastq (char         *path,
           fastq->qual = line;
 
           /* Size */
-          fastq->size = MAX (strlen (fastq->seq),
+          fastq->size = MIN (strlen (fastq->seq),
                              strlen (fastq->qual));
 
           /* Callback */
-          if (!func (fastq, data))
+          ret = func (fastq, data);
+          fastq_seq_free (fastq);
+          if (!ret)
             break;
         }
     }
@@ -378,6 +414,188 @@ error:
 
 cleanup:
   g_io_channel_unref (channel);
+}
+
+static void
+iter_fastq_ugly  (char         *path,
+                   FastqIterFunc func,
+                   void         *data,
+                   GError      **error)
+{
+#define BUFFER_SIZE (1024 * 16)
+#define MAX_STRING_SIZE 256
+  char      buffer[BUFFER_SIZE];
+  char      name[MAX_STRING_SIZE + 1];
+  char      seq[MAX_STRING_SIZE + 1];
+  char      qual[MAX_STRING_SIZE + 1];
+  FILE     *file;
+  FastqSeq  current;
+  FastqSeq *fastq    = NULL;
+  int       name_idx = 0;
+  int       seq_idx  = 0;
+  int       qual_idx = 0;
+  int       status   = 0;
+  int       i;
+
+  if (path[0] == '-' && path[1] == '\0')
+    file = stdin;
+  else
+    {
+      file = fopen (path, "r");
+      if (file == NULL)
+        {
+          g_printerr ("[ERROR] Could not open %s\n", path);
+          /* TODO Should raise an error instead => have to create my own error domain ... */
+          exit (1);
+        }
+    }
+
+  do
+    {
+      const size_t bytes_read = fread (buffer, sizeof (char), BUFFER_SIZE, file);
+
+      for (i = 0; i < bytes_read; i++)
+        {
+          if (status == 0 && buffer[i] == '@')
+            {
+              if (fastq)
+                {
+                  int ret;
+
+                  fastq->size = MIN (seq_idx, qual_idx);
+                  ret         = func (fastq, data);
+                  if (!ret)
+                    goto cleanup;
+                }
+              else
+                {
+                  fastq       = &current;
+                  fastq->name = name;
+                  fastq->seq  = seq;
+                  fastq->qual = qual;
+                }
+              name_idx = 0;
+              seq_idx  = 0;
+              qual_idx = 0;
+              status   = 1;
+            }
+          /* name */
+          if (status == 1)
+            {
+              if (buffer[i] == '\n')
+                {
+                  name[name_idx] = '\0';
+                  status = 2;
+                }
+              else if (name_idx == MAX_STRING_SIZE)
+                {
+                  if (buffer[i] == '\n')
+                    {
+                      name[name_idx] = '\0';
+                      status = 2;
+                    }
+                }
+              else
+                {
+                  name[name_idx] = buffer[i];
+                  ++name_idx;
+                }
+            }
+          /* sequence */
+          else if (status == 2)
+            {
+              if (buffer[i] == '\n')
+                {
+                  seq[seq_idx] = '\0';
+                  status = 3;
+                }
+              else if (seq_idx == MAX_STRING_SIZE)
+                {
+                  if (buffer[i] == '\n')
+                    {
+                      seq[seq_idx] = '\0';
+                      status = 3;
+                    }
+                }
+              else
+                {
+                  seq[seq_idx] = buffer[i];
+                  ++seq_idx;
+                }
+            }
+          /* name again */
+          else if (status == 3)
+            {
+              if (buffer[i] == '\n')
+                status = 4;
+            }
+          /* quality */
+          else if (status == 4)
+            {
+              if (buffer[i] == '\n')
+                {
+                  qual[qual_idx] = '\0';
+                  status = 0;
+                }
+              else if (qual_idx == MAX_STRING_SIZE)
+                {
+                  if (buffer[i] == '\n')
+                    {
+                      qual[qual_idx] = '\0';
+                      status = 0;
+                    }
+                }
+              else
+                {
+                  qual[qual_idx] = buffer[i];
+                  ++qual_idx;
+                }
+            }
+        }
+      if (bytes_read < BUFFER_SIZE)
+        {
+          if (feof (file))
+            break;
+          if (ferror (file))
+            {
+              g_printerr ("[ERROR] Failed while reading %s\n", path);
+              /* TODO Should raise an error instead */
+              exit (1);
+            }
+        }
+    }
+  while (1);
+  if ((status == 0 || status == 4) && fastq)
+    {
+      fastq->size = MIN (seq_idx, qual_idx);
+      func (fastq, data);
+    }
+
+cleanup:
+  fclose (file);
+
+#undef BUFFER_SIZE
+#undef MAX_NAME_SIZE
+}
+
+GOptionGroup*
+get_fastq_option_group (void)
+{
+  GOptionEntry entries[] =
+    {
+      {"fastq_parser_name", 0, 0, G_OPTION_ARG_STRING, &fastq_parser_name, "Name of the parser", NULL},
+      {NULL}
+    };
+  GOptionGroup *option_group;
+
+  option_group = g_option_group_new ("fastq",
+                                     "fastq parser options",
+                                     "Show fastq parser options",
+                                     NULL,
+                                     NULL);
+  g_option_group_add_entries (option_group, entries);
+
+  return option_group;
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:

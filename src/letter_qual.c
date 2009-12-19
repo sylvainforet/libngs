@@ -88,6 +88,7 @@ parse_args (LetterQualData    *data,
   data->fast = 0;
 
   context = g_option_context_new ("FILE - Letter-wise distribution of quality calls");
+  g_option_context_add_group (context, get_fastq_option_group ());
   g_option_context_add_main_entries (context, entries, NULL);
   if (!g_option_context_parse (context, argc, argv, &error))
     {

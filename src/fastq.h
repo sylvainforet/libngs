@@ -47,6 +47,12 @@ void iter_fastq (char         *path,
                  void         *data,
                  GError      **error);
 
+/**
+ * Get the option group for the fastq parsing system
+ */
+
+GOptionGroup* get_fastq_option_group (void);
+
 
 #endif /* __FASTQ_H__ */
 

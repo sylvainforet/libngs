@@ -97,6 +97,7 @@ parse_args (Fastq2FastaData   *data,
   data->out_qual_channel = NULL;
 
   context = g_option_context_new ("FILE - Converts a fastq file to a fasta file");
+  g_option_context_add_group (context, get_fastq_option_group ());
   g_option_context_add_main_entries (context, entries, NULL);
   if (!g_option_context_parse (context, argc, argv, &error))
     {
@@ -159,13 +160,17 @@ iter_func (FastqSeq        *fastq,
 
   if (data->do_seq)
     {
-      char *buffer;
+      GString *buffer;
 
-      buffer = g_strdup_printf (">%s\n%s\n",
-                                fastq->name + 1,
-                                fastq->seq);
+      buffer = g_string_sized_new (512);
+      buffer = g_string_append_c (buffer, '>');
+      buffer = g_string_append (buffer, fastq->name + 1);
+      buffer = g_string_append_c (buffer, '\n');
+      buffer = g_string_append_len (buffer, fastq->seq, fastq->size);
+      buffer = g_string_append_c (buffer, '\n');
+
       g_io_channel_write_chars (data->out_seq_channel,
-                                buffer,
+                                buffer->str,
                                 -1,
                                 NULL,
                                 &error);
@@ -176,20 +181,19 @@ iter_func (FastqSeq        *fastq,
           error = NULL;
           ret   = 0;
         }
-      g_free (buffer);
+      g_string_free (buffer, TRUE);
     }
   if (data->do_qual)
     {
       GString *buffer;
-      char    *tmp;
+      int      i;
 
       buffer = g_string_sized_new (512);
       buffer = g_string_append_c (buffer, '>');
       buffer = g_string_append (buffer, fastq->name + 1);
       buffer = g_string_append_c (buffer, '\n');
-      tmp    = fastq->qual - 1;
-      while (*++tmp)
-        buffer = g_string_append (buffer, fastq_qual_char_2_string[(int)*tmp]);
+      for (i = 0; i < fastq->size; i++)
+        buffer = g_string_append (buffer, fastq_qual_char_2_string[(int)fastq->qual[i]]);
       buffer = g_string_append_c (buffer, '\n');
 
       g_io_channel_write_chars (data->out_qual_channel,
@@ -206,7 +210,6 @@ iter_func (FastqSeq        *fastq,
         }
       g_string_free (buffer, TRUE);
     }
-  fastq_seq_free (fastq);
 
   return ret;
 }
