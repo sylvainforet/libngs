@@ -155,6 +155,7 @@ iter_func (FastqSeq        *fastq,
            Fastq2FastaData *data)
 {
   GError *error = NULL;
+  int     ret   = 1;
 
   if (data->do_seq)
     {
@@ -173,6 +174,7 @@ iter_func (FastqSeq        *fastq,
           g_printerr ("[ERROR] Writing sequence failed: %s\n", error->message);
           g_error_free (error);
           error = NULL;
+          ret   = 0;
         }
       g_free (buffer);
     }
@@ -200,12 +202,13 @@ iter_func (FastqSeq        *fastq,
           g_printerr ("[ERROR] Writing quality failed: %s\n", error->message);
           g_error_free (error);
           error = NULL;
+          ret   = 0;
         }
       g_string_free (buffer, TRUE);
     }
   fastq_seq_free (fastq);
 
-  return 1;
+  return ret;
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
