@@ -63,7 +63,7 @@ bsq_summary_SOURCES = \
 CLEANFILES = \
 	lex.FlexFastq_.c \
 	lex.FlexFastqUgly_.c \
-	lex.FlexBsq_.c
+	lex.FlexBsq_.c \
 	lex.FlexBsqUgly_.c
 
 MAINTAINERCLEANFILES = \
