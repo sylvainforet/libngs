@@ -13,8 +13,15 @@ lex.FlexFastq_.c: fastq_flex.l fastq_flex.h
 lex.FlexFastqUgly_.c: fastq_flex_ugly.l fastq_flex.h
 	@LEX@ fastq_flex_ugly.l
 
+lex.FlexBsq_.c: bsq_flex.l bsq_flex.h
+	@LEX@ bsq_flex.l
+
+lex.FlexBsqUgly_.c: bsq_flex_ugly.l bsq_flex.h
+	@LEX@ bsq_flex_ugly.l
+
 noinst_LTLIBRARIES = \
-	libfastq.la
+	libfastq.la \
+	libbsq.la
 
 libfastq_la_SOURCES = \
 	fastq.h \
@@ -26,9 +33,17 @@ libfastq_la_SOURCES = \
 	lex.FlexFastq_.c \
 	lex.FlexFastqUgly_.c
 
+libbsq_la_SOURCES = \
+	bsq.h \
+	bsq.c \
+	bsq_flex.h \
+	lex.FlexBsq_.c \
+	lex.FlexBsqUgly_.c
+
 bin_PROGRAMS = \
 	fastq2fasta \
-	letter_qual
+	letter_qual \
+	bsq_summary
 
 fastq2fasta_LDADD = \
 	libfastq.la
@@ -40,9 +55,16 @@ letter_qual_LDADD = \
 letter_qual_SOURCES = \
 	letter_qual.c
 
+bsq_summary_LDADD = \
+	libbsq.la
+bsq_summary_SOURCES = \
+	bsq_summary.c
+
 CLEANFILES = \
 	lex.FlexFastq_.c \
-	lex.FlexFastqUgly_.c
+	lex.FlexFastqUgly_.c \
+	lex.FlexBsq_.c
+	lex.FlexBsqUgly_.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in

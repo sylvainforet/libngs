@@ -13,7 +13,7 @@
 
 %{
 /**
- * FlexFastq.l
+ * FlexFastqUgly.l
  */
 
 #include "fastq_flex.h"
