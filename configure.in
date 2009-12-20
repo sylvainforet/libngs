@@ -1,8 +1,8 @@
 # Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.54])
 
-AC_INIT([Illumina Utilities], [0.0.1], [sylvain foret at anu edu au], [illumina_utils])
-AC_CONFIG_SRCDIR([src/])
+AC_INIT([illumina_utils], [0.0.1], [sylvain foret at anu edu au])
+AC_CONFIG_SRCDIR([src/fastq.h])
 AM_INIT_AUTOMAKE(AC_PACKAGE_TARNAME, AC_PACKAGE_VERSION)
 AM_CONFIG_HEADER(config.h)
 
@@ -10,8 +10,11 @@ AM_CONFIG_HEADER(config.h)
 
 AC_PROG_CC
 AC_ISC_POSIX
+AC_PROG_LIBTOOL
 AM_PROG_CC_STDC
 AM_PROG_LEX
+
+#AC_CONFIG_MACRO_DIR([m4])
 
 # Checks for pkg-config
 ### TODO

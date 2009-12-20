@@ -7,7 +7,7 @@
 %option noyywrap
 
 %option reentrant
-%option prefix="FlexFastq_"
+%option prefix="FlexFastqUgly_"
 
 %option extra-type="FlexFastqData *"
 
@@ -18,13 +18,15 @@
 
 #include "fastq_flex.h"
 
+#define MAX_STRING_SIZE 512
+
 typedef struct _FlexFastqData FlexFastqData;
 
 struct _FlexFastqData
 {
-  FastqSeq      *fastq;
-  FastqIterFunc  func;
-  void          *data;
+  FastqSeq      fastq;
+  FastqIterFunc func;
+  void         *data;
 };
 
 %}
@@ -35,8 +37,9 @@ struct _FlexFastqData
 %%
 
 ^@.* {
-    yyextra->fastq       = fastq_seq_new ();
-    yyextra->fastq->name = strdup (yytext);
+    size_t n = MIN (MAX_STRING_SIZE, yyleng);
+    memcpy (yyextra->fastq.name, yytext, n);
+    yyextra->fastq.name[n] = '\0';
     BEGIN (SEQ);
 }
 
@@ -45,18 +48,19 @@ struct _FlexFastqData
 }
 
 <SEQ>.* {
-    yyextra->fastq->seq  = strdup (yytext);
-    yyextra->fastq->size = yyleng;
+    size_t n = MIN (MAX_STRING_SIZE, yyleng);
+    memcpy (yyextra->fastq.seq, yytext, n);
+    yyextra->fastq.seq[n] = '\0';
+    yyextra->fastq.size = n;
     BEGIN (INITIAL);
 }
 
 <QUAL>.* {
-    int ret;
-    yyextra->fastq->qual = strdup (yytext);
-    yyextra->fastq->size = MIN (yyleng, yyextra->fastq->size);
-    ret                  = yyextra->func (yyextra->fastq, yyextra->data);
-    fastq_seq_free (yyextra->fastq);
-    if (!ret)
+    size_t n = MIN (MAX_STRING_SIZE, yyleng);
+    memcpy (yyextra->fastq.qual, yytext, n);
+    yyextra->fastq.qual[n] = '\0';
+    yyextra->fastq.size = MIN (n, yyextra->fastq.size);
+    if (!yyextra->func (&yyextra->fastq, yyextra->data))
       yyterminate ();
     BEGIN (INITIAL);
 }
@@ -65,14 +69,17 @@ struct _FlexFastqData
 
 %%
 
-void iter_fastq_flex (char         *path,
-                      FastqIterFunc func,
-                      void         *func_data,
-                      GError      **error)
+void iter_fastq_flex_ugly (char         *path,
+                           FastqIterFunc func,
+                           void         *func_data,
+                           GError      **error)
 {
   yyscan_t      scanner;
   FILE         *file;
   FlexFastqData data;
+  char          name[MAX_STRING_SIZE + 1];
+  char          seq[MAX_STRING_SIZE + 1];
+  char          qual[MAX_STRING_SIZE + 1];
 
   if (path[0] == '-' && path[1] == '\0')
     file = stdin;
@@ -87,6 +94,9 @@ void iter_fastq_flex (char         *path,
         }
     }
 
+  data.fastq.name = name;
+  data.fastq.seq  = seq;
+  data.fastq.qual = qual;
   data.func       = func;
   data.data       = func_data;
   yylex_init_extra (&data, &scanner);
