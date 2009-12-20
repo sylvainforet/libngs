@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "fastq.h"
+#include "fastq_flex.h"
 
 
 static char *fastq_parser_name = NULL;
@@ -321,6 +322,8 @@ iter_fastq (char         *path,
     iter_fastq_simple (path, func, data, error);
   else if (g_strcmp0 (fastq_parser_name, "ugly") == 0)
     iter_fastq_ugly (path, func, data, error);
+  else if (g_strcmp0 (fastq_parser_name, "flex") == 0)
+    iter_fastq_flex (path, func, data, error);
   else
     {
       g_printerr ("[ERROR] Unknown fastq parser: %s\n",

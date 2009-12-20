@@ -11,9 +11,14 @@ AM_CPPFLAGS = \
 AM_LDFLAGS = \
 	@GLIB_LIBS@
 
+lex.FlexFastq_.c: fastq_flex.l fastq_flex.h
+	@LEX@ fastq_flex.l
+
 fastq2fasta_SOURCES = \
 	fastq.h \
 	fastq.c \
+	lex.FlexFastq_.c \
+	fastq_flex.h \
 	fastq_utils.h \
 	fastq_utils.c \
 	fastq2fasta.c
@@ -21,9 +26,14 @@ fastq2fasta_SOURCES = \
 letter_qual_SOURCES = \
 	fastq.h \
 	fastq.c \
+	lex.FlexFastq_.c \
+	fastq_flex.h \
 	fastq_utils.h \
 	fastq_utils.c \
 	letter_qual.c
+
+CLEANFILES = \
+	lex.FlexFastq_.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in
