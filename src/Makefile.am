@@ -7,6 +7,9 @@ AM_CPPFLAGS = \
 AM_LDFLAGS = \
 	@GLIB_LIBS@
 
+lex.FlexFasta_.c: fasta_flex.l fasta_flex.h
+	@LEX@ fasta_flex.l
+
 lex.FlexFastq_.c: fastq_flex.l fastq_flex.h
 	@LEX@ fastq_flex.l
 
@@ -23,8 +26,15 @@ lex.FlexBsqUgly_.c: bsq_flex_ugly.l bsq_flex.h
 	@LEX@ bsq_flex_ugly.l
 
 noinst_LTLIBRARIES = \
+	libfasta.la \
 	libfastq.la \
 	libbsq.la
+
+libfasta_la_SOURCES = \
+	fasta.h \
+	fasta.c \
+	fasta_flex.h \
+	lex.FlexFasta_.c
 
 libfastq_la_SOURCES = \
 	fastq.h \
@@ -45,9 +55,15 @@ libbsq_la_SOURCES = \
 	lex.FlexBsqLine_.c
 
 bin_PROGRAMS = \
+	test_fasta \
 	fastq2fasta \
 	letter_qual \
 	bsq_summary
+
+test_fasta_LDADD = \
+	libfasta.la
+test_fasta_SOURCES = \
+	test_fasta.c
 
 fastq2fasta_LDADD = \
 	libfastq.la
@@ -65,6 +81,7 @@ bsq_summary_SOURCES = \
 	bsq_summary.c
 
 CLEANFILES = \
+	lex.FlexFasta_.c \
 	lex.FlexFastq_.c \
 	lex.FlexFastqUgly_.c \
 	lex.FlexBsq_.c \
