@@ -15,6 +15,7 @@ struct _BsqSummaryData
   char              *input_path;
   int                mate_pairs;
   int                strands;
+  int                good;
 };
 
 static int  iter_func     (BsqRecord         *rec,
@@ -61,7 +62,8 @@ parse_args (BsqSummaryData    *data,
   GOptionEntry entries[] =
     {
       {"mate_pairs", 'p', 0, G_OPTION_ARG_NONE,   &data->mate_pairs, "Count mate pairs separately", NULL},
-      {"strands"   , 's', 0, G_OPTION_ARG_NONE,   &data->strands,    "Counts strands separatedly",  NULL},
+      {"strands"   , 's', 0, G_OPTION_ARG_NONE,   &data->strands,    "Count strands separatedly",   NULL},
+      {"good"      , 'g', 0, G_OPTION_ARG_NONE,   &data->good,       "Summary of uniquely mapped `good' reads",  NULL},
       {NULL}
     };
   GError         *error = NULL;
@@ -69,6 +71,7 @@ parse_args (BsqSummaryData    *data,
 
   data->mate_pairs = 0;
   data->strands    = 0;
+  data->good       = 0;
 
   context = g_option_context_new ("FILE - Creates a summary of the mapping results");
   g_option_context_add_group (context, get_bsq_option_group ());
@@ -79,6 +82,12 @@ parse_args (BsqSummaryData    *data,
       exit (1);
     }
   g_option_context_free (context);
+
+  if (data->good)
+    {
+      data->mate_pairs = 1;
+      data->strands    = 1;
+    }
 
   if (*argc < 2)
     {
@@ -202,6 +211,30 @@ print_symmary (BsqSummaryData *data)
                      map_flag_names[k],
                      data->counts[0][0][k]);
         }
+    }
+  if (data->good)
+    {
+      unsigned long int g1 = 0;
+      unsigned long int g2 = 0;
+      unsigned long int t1 = 0;
+      unsigned long int t2 = 0;
+
+      g1 += data->counts[0][BSQ_STRAND_W ][BSQ_MAP_UM];
+      g1 += data->counts[0][BSQ_STRAND_C ][BSQ_MAP_UM];
+
+      g2 += data->counts[1][BSQ_STRAND_WC][BSQ_MAP_UM];
+      g2 += data->counts[1][BSQ_STRAND_CC][BSQ_MAP_UM];
+
+      for (j = 0; j < BSQ_STRAND_NB; j++)
+        for (k = 0; k < BSQ_MAP_FLAG_NB; k++)
+          t1 += data->counts[0][j][k];
+
+      for (j = 0; j < BSQ_STRAND_NB; j++)
+        for (k = 0; k < BSQ_MAP_FLAG_NB; k++)
+          t2 += data->counts[1][j][k];
+
+      g_print ("* Unique good reads on strand 1: %ld / %ld (%.2f)\n", g1, t1, (100. * g1) / t1);
+      g_print ("* Unique good reads on strand 2: %ld / %ld (%.2f)\n", g2, t2, (100. * g2) / t2);
     }
 }
 
