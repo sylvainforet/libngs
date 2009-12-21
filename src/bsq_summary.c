@@ -110,7 +110,7 @@ iter_func (BsqRecord      *rec,
              rec->seq,
              map_flag_names[rec->flag]);
 
-  return 0;
+  return 1;
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:

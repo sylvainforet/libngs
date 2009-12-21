@@ -127,10 +127,14 @@ struct _FlexBsqData
 }
 
 <*>\n {
-    yyextra->func (yyextra->rec, yyextra->data);
+    int ret;
+
+    ret = yyextra->func (yyextra->rec, yyextra->data);
     if (yyextra->rec)
       bsq_record_free (yyextra->rec);
     yyextra->rec = NULL;
+    if (!ret)
+      yyterminate ();
     BEGIN (INITIAL);
 }
 

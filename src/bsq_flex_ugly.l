@@ -138,7 +138,8 @@ struct _FlexBsqData
 }
 
 <*>\n {
-    yyextra->func (&yyextra->rec, yyextra->data);
+    if (!yyextra->func (&yyextra->rec, yyextra->data))
+      yyterminate ();
     BEGIN (INITIAL);
 }
 

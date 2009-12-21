@@ -16,6 +16,9 @@ lex.FlexFastqUgly_.c: fastq_flex_ugly.l fastq_flex.h
 lex.FlexBsq_.c: bsq_flex.l bsq_flex.h
 	@LEX@ bsq_flex.l
 
+lex.FlexBsqLine_.c: bsq_flex_line.l bsq_flex.h
+	@LEX@ bsq_flex_line.l
+
 lex.FlexBsqUgly_.c: bsq_flex_ugly.l bsq_flex.h
 	@LEX@ bsq_flex_ugly.l
 
@@ -38,7 +41,8 @@ libbsq_la_SOURCES = \
 	bsq.c \
 	bsq_flex.h \
 	lex.FlexBsq_.c \
-	lex.FlexBsqUgly_.c
+	lex.FlexBsqUgly_.c \
+	lex.FlexBsqLine_.c
 
 bin_PROGRAMS = \
 	fastq2fasta \
@@ -64,7 +68,8 @@ CLEANFILES = \
 	lex.FlexFastq_.c \
 	lex.FlexFastqUgly_.c \
 	lex.FlexBsq_.c \
-	lex.FlexBsqUgly_.c
+	lex.FlexBsqUgly_.c \
+	lex.FlexBsqLine_.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in

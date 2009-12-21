@@ -76,6 +76,8 @@ iter_bsq (char         *path,
     iter_bsq_simple (path, func, data, error);
   else if (g_strcmp0 (bsq_parser_name, "flexugly") == 0)
     iter_bsq_flex_ugly (path, func, data, error);
+  else if (g_strcmp0 (bsq_parser_name, "flexline") == 0)
+    iter_bsq_flex_line (path, func, data, error);
   else
     {
       g_printerr ("[ERROR] Unknown bsq parser: %s\n",
@@ -119,6 +121,7 @@ iter_bsq_simple (char         *path,
 
   while (G_IO_STATUS_NORMAL == g_io_channel_read_line (channel, &line, &length, &endl, &tmp_err))
     {
+      int    ret;
       char **fields;
 
       line[endl] = '\0';
@@ -192,10 +195,12 @@ iter_bsq_simple (char         *path,
                 }
             }
         }
-      func (&record, data);
+      ret = func (&record, data);
       g_strfreev (fields);
       g_free (line);
       line   = NULL;
+      if (!ret)
+        break;
       record.name     = NULL;
       record.seq      = NULL;
       record.ref      = NULL;

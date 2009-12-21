@@ -26,6 +26,15 @@ void iter_bsq_flex_ugly (char         *path,
                          void         *func_data,
                          GError      **error);
 
+/**
+ * A faster parser that does not do any memcopy or allocations.
+ * The BsqRecord is field directly by pointer to the line.
+ */
+void iter_bsq_flex_line (char         *path,
+                         BsqIterFunc   func,
+                         void         *func_data,
+                         GError      **error);
+
 #endif /* __BSQ_FLEX_H__ */
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
