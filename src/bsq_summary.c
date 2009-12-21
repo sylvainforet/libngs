@@ -3,6 +3,7 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "bsq.h"
 
@@ -10,18 +11,22 @@ typedef struct  _BsqSummaryData BsqSummaryData;
 
 struct _BsqSummaryData
 {
-  unsigned long int ***counts;
-  char                *input_path;
-  int                  mate_pairs;
-  int                  strands;
+  unsigned long int  counts[2][BSQ_STRAND_NB][BSQ_MAP_FLAG_NB];
+  char              *input_path;
+  int                mate_pairs;
+  int                strands;
 };
 
-static int  iter_func  (BsqRecord         *rec,
-                        BsqSummaryData    *data);
+static int  iter_func     (BsqRecord         *rec,
+                           BsqSummaryData    *data);
 
-static void parse_args (BsqSummaryData    *data,
-                        int               *argc,
-                        char            ***argv);
+static void parse_args    (BsqSummaryData    *data,
+                           int               *argc,
+                           char            ***argv);
+
+static void print_symmary (BsqSummaryData    *data);
+
+static void init_counts   (BsqSummaryData    *data);
 
 int
 main (int    argc,
@@ -31,6 +36,7 @@ main (int    argc,
   GError         *error = NULL;
 
   parse_args (&data, &argc, &argv);
+  init_counts (&data);
 
   iter_bsq   (data.input_path,
               (BsqIterFunc)iter_func,
@@ -41,6 +47,8 @@ main (int    argc,
       g_printerr ("[ERROR] Iterating bsq records failed: %s\n", error->message);
       g_error_free (error);
     }
+  else
+    print_symmary (&data);
 
   return 0;
 }
@@ -58,6 +66,9 @@ parse_args (BsqSummaryData    *data,
     };
   GError         *error = NULL;
   GOptionContext *context;
+
+  data->mate_pairs = 0;
+  data->strands    = 0;
 
   context = g_option_context_new ("FILE - Creates a summary of the mapping results");
   g_option_context_add_group (context, get_bsq_option_group ());
@@ -81,6 +92,7 @@ static int
 iter_func (BsqRecord      *rec,
            BsqSummaryData *data)
 {
+#if 0
   if (rec->flag == BSQ_MAP_UM ||
       rec->flag == BSQ_MAP_MA ||
       rec->flag == BSQ_MAP_OF)
@@ -110,7 +122,100 @@ iter_func (BsqRecord      *rec,
              rec->seq,
              map_flag_names[rec->flag]);
 
+#else
+
+  int mate_pair_idx = 0;
+  int strand_idx    = 0;
+
+  if (data->mate_pairs)
+    {
+      int name_len = strlen (rec->name);
+
+      if (name_len > 1
+          && rec->name[name_len - 1] == '2')
+        mate_pair_idx = 1;
+    }
+  if (data->strands)
+    if (rec->flag == BSQ_MAP_UM ||
+        rec->flag == BSQ_MAP_MA ||
+        rec->flag == BSQ_MAP_OF)
+    strand_idx = rec->strand;
+
+  data->counts[mate_pair_idx][strand_idx][rec->flag]++;
+#endif
+
   return 1;
+}
+
+static void
+print_symmary (BsqSummaryData *data)
+{
+  int i;
+  int j;
+  int k;
+
+  if (data->mate_pairs)
+    {
+      for (i = 0; i < 2; i++)
+        {
+          g_print ("* Counts for mate pairs %d:\n", i + 1);
+          if (data->strands)
+            {
+              for (j = 0; j < BSQ_STRAND_NB; j++)
+                {
+                  g_print ("  + Counts for strand %s:\n", strand_names[j]);
+                  for (k = 0; k < BSQ_MAP_FLAG_NB; k++)
+                    g_print ("    %s: %ld\n",
+                             map_flag_names[k],
+                             data->counts[i][j][k]);
+                }
+            }
+          else
+            {
+              g_print ("  + Counts for all strand\n");
+              for (k = 0; k < BSQ_MAP_FLAG_NB; k++)
+                g_print ("    %s: %ld\n",
+                         map_flag_names[k],
+                         data->counts[i][0][k]);
+            }
+        }
+    }
+  else
+    {
+      g_print ("* Counts for all mate pairs\n");
+      if (data->strands)
+        {
+          for (j = 0; j < BSQ_STRAND_NB; j++)
+            {
+              g_print ("  + Counts for strand %s:\n", strand_names[j]);
+              for (k = 0; k < BSQ_MAP_FLAG_NB; k++)
+                g_print ("    %s: %ld\n",
+                         map_flag_names[k],
+                         data->counts[0][j][k]);
+            }
+        }
+      else
+        {
+          g_print ("  + Counts for all strand\n");
+          for (k = 0; k < BSQ_MAP_FLAG_NB; k++)
+            g_print ("    %s: %ld\n",
+                     map_flag_names[k],
+                     data->counts[0][0][k]);
+        }
+    }
+}
+
+static void
+init_counts (BsqSummaryData *data)
+{
+  int i;
+  int j;
+  int k;
+
+  for (i = 0; i < 2; i++)
+    for (j = 0; j < BSQ_STRAND_NB; j++)
+      for (k = 0; k < BSQ_MAP_FLAG_NB; k++)
+        data->counts[i][j][k] = 0;
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
