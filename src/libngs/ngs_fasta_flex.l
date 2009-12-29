@@ -17,6 +17,7 @@
  */
 
 #include "ngs_fasta_flex.h"
+#include "ngs_utils.h"
 
 typedef struct _FlexFastaData FlexFastaData;
 
@@ -100,14 +101,15 @@ void iter_fasta_flex (char         *path,
   if (path[0] == '-' && path[1] == '\0')
     file = stdin;
   else
+    file = fopen (path, "r");
+  if (file == NULL)
     {
-      file = fopen (path, "r");
-      if (file == NULL)
-        {
-          g_printerr ("[ERROR] Could not open %s\n", path);
-          /* TODO Should raise an error instead => have to create my own error domain ... */
-          exit (1);
-        }
+      g_set_error (error,
+                   NGS_ERROR,
+                   NGS_IO_ERROR,
+                   "Could not open input file `%s'",
+                   path);
+      return;
     }
 
   data.fasta      = NULL;

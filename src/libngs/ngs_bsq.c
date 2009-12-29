@@ -9,6 +9,7 @@
 
 #include "ngs_bsq.h"
 #include "ngs_bsq_flex.h"
+#include "ngs_utils.h"
 
 
 static char *bsq_parser_name = NULL;
@@ -80,10 +81,11 @@ iter_bsq (char         *path,
     iter_bsq_flex_line (path, func, data, error);
   else
     {
-      g_printerr ("[ERROR] Unknown bsq parser: %s\n",
-                  bsq_parser_name);
-      /* TODO raise an error instead of exiting */
-      exit (1);
+      g_set_error (error,
+                   NGS_ERROR,
+                   NGS_UNKNOWN_ERROR,
+                   "Unknown bsq parser: `%s'",
+                   bsq_parser_name);
     }
 }
 
@@ -103,8 +105,14 @@ iter_bsq_simple (char         *path,
   if (path[0] == '-' && path[1] == '\0')
     {
       channel = g_io_channel_unix_new (STDIN_FILENO);
-      if (!channel) /* TODO raise an error here */
-        return;
+      if (!channel)
+        {
+          g_set_error (error,
+                       NGS_ERROR,
+                       NGS_IO_ERROR,
+                       "Could not open stdin for reading");
+          return;
+        }
     }
   else
     {

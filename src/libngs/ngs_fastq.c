@@ -9,6 +9,7 @@
 
 #include "ngs_fastq.h"
 #include "ngs_fastq_flex.h"
+#include "ngs_utils.h"
 
 
 static char *fastq_parser_name = NULL;
@@ -64,10 +65,11 @@ iter_fastq (char         *path,
     iter_fastq_flex_ugly (path, func, data, error);
   else
     {
-      g_printerr ("[ERROR] Unknown fastq parser: %s\n",
-                  fastq_parser_name);
-      /* TODO raise an error instead of exiting */
-      exit (1);
+      g_set_error (error,
+                   NGS_ERROR,
+                   NGS_UNKNOWN_ERROR,
+                   "Unknown fastq parser: `%s'",
+                   fastq_parser_name);
     }
 }
 
@@ -88,8 +90,14 @@ iter_fastq_simple (char         *path,
   if (path[0] == '-' && path[1] == '\0')
     {
       channel = g_io_channel_unix_new (STDIN_FILENO);
-      if (!channel) /* TODO raise an error here */
-        return;
+      if (!channel)
+        {
+          g_set_error (error,
+                       NGS_ERROR,
+                       NGS_IO_ERROR,
+                       "Could not open stdin for reading");
+          return;
+        }
     }
   else
     {
@@ -181,14 +189,15 @@ iter_fastq_ugly  (char         *path,
   if (path[0] == '-' && path[1] == '\0')
     file = stdin;
   else
+    file = fopen (path, "r");
+  if (file == NULL)
     {
-      file = fopen (path, "r");
-      if (file == NULL)
-        {
-          g_printerr ("[ERROR] Could not open %s\n", path);
-          /* TODO Should raise an error instead => have to create my own error domain ... */
-          exit (1);
-        }
+      g_set_error (error,
+                   NGS_ERROR,
+                   NGS_IO_ERROR,
+                   "Could not open input file `%s'",
+                   path);
+      return;
     }
 
   do
@@ -299,9 +308,12 @@ iter_fastq_ugly  (char         *path,
             break;
           if (ferror (file))
             {
-              g_printerr ("[ERROR] Failed while reading %s\n", path);
-              /* TODO Should raise an error instead */
-              exit (1);
+              g_set_error (error,
+                           NGS_ERROR,
+                           NGS_IO_ERROR,
+                           "Error while reading `%s'",
+                           path);
+              goto cleanup;
             }
         }
     }

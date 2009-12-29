@@ -5,8 +5,6 @@
 #ifndef __NGS_FASTA_FLEX_H__
 #define __NGS_FASTA_FLEX_H__
 
-#include <glib.h>
-
 #include "ngs_fasta.h"
 
 /**

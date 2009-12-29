@@ -7,6 +7,7 @@
 
 #include "ngs_fasta.h"
 #include "ngs_fasta_flex.h"
+#include "ngs_utils.h"
 
 
 static char *fasta_parser_name = NULL;
@@ -47,10 +48,11 @@ iter_fasta (char         *path,
     iter_fasta_flex (path, func, data, error);
   else
     {
-      g_printerr ("[ERROR] Unknown fasta parser: %s\n",
-                  fasta_parser_name);
-      /* TODO raise an error instead of exiting */
-      exit (1);
+      g_set_error (error,
+                   NGS_ERROR,
+                   NGS_UNKNOWN_ERROR,
+                   "Unknown fasta parser: `%s'",
+                   fasta_parser_name);
     }
 }
 
