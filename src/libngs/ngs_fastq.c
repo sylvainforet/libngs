@@ -7,8 +7,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "fastq.h"
-#include "fastq_flex.h"
+#include "ngs_fastq.h"
+#include "ngs_fastq_flex.h"
 
 
 static char *fastq_parser_name = NULL;

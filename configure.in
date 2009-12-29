@@ -53,5 +53,7 @@ AC_SUBST(gbpplugindir)
 AC_CONFIG_FILES([
 	Makefile
 	src/Makefile
+	src/bin/Makefile
+	src/libngs/Makefile
 	])
 AC_OUTPUT

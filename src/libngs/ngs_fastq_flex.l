@@ -16,7 +16,7 @@
  * FlexFastq.l
  */
 
-#include "fastq_flex.h"
+#include "ngs_fastq_flex.h"
 
 typedef struct _FlexFastqData FlexFastqData;
 

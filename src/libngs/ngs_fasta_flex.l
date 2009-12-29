@@ -16,7 +16,7 @@
  * FlexFasta.l
  */
 
-#include "fasta_flex.h"
+#include "ngs_fasta_flex.h"
 
 typedef struct _FlexFastaData FlexFastaData;
 

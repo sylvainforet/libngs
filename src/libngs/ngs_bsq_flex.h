@@ -2,12 +2,12 @@
  *
  */
 
-#ifndef __BSQ_FLEX_H__
-#define __BSQ_FLEX_H__
+#ifndef __NGS_BSQ_FLEX_H__
+#define __NGS_BSQ_FLEX_H__
 
 #include <glib.h>
 
-#include "bsq.h"
+#include "ngs_bsq.h"
 
 /**
  * A simple and robust flex-based parser.
@@ -35,7 +35,7 @@ void iter_bsq_flex_line (char         *path,
                          void         *func_data,
                          GError      **error);
 
-#endif /* __BSQ_FLEX_H__ */
+#endif /* __NGS_BSQ_FLEX_H__ */
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */

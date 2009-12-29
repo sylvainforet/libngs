@@ -2,8 +2,8 @@
  *
  */
 
-#ifndef __BSQ_H__
-#define __BSQ_H__
+#ifndef __NGS_BSQ_H__
+#define __NGS_BSQ_H__
 
 #include <glib.h>
 
@@ -81,7 +81,7 @@ void iter_bsq (char         *path,
 GOptionGroup* get_bsq_option_group (void);
 
 
-#endif /* __BSQ_H__ */
+#endif /* __NGS_BSQ_H__ */
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */

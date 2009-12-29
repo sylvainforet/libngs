@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "fasta.h"
-#include "fasta_flex.h"
+#include "ngs_fasta.h"
+#include "ngs_fasta_flex.h"
 
 
 static char *fasta_parser_name = NULL;

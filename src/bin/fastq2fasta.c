@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "fastq.h"
+#include "ngs_fastq.h"
 
 typedef struct _Fastq2FastaData Fastq2FastaData;
 

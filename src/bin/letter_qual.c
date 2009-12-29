@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "fastq.h"
+#include "ngs_fastq.h"
 
 #define N_QUAL 40
 

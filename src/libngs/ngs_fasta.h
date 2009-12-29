@@ -2,8 +2,8 @@
  *
  */
 
-#ifndef __FASTA_H__
-#define __FASTA_H__
+#ifndef __NGS_FASTA_H__
+#define __NGS_FASTA_H__
 
 #include <glib.h>
 
@@ -55,7 +55,7 @@ GHashTable* load_fasta_dict (char *path);
 
 GOptionGroup* get_fasta_option_group (void);
 
-#endif /* __FASTA_H__ */
+#endif /* __NGS_FASTA_H__ */
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */

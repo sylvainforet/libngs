@@ -1,3 +1,6 @@
+/**
+ *
+ */
 
 int fastq_qual_char_2_int[] = 
 {

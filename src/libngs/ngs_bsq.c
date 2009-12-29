@@ -7,8 +7,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "bsq.h"
-#include "bsq_flex.h"
+#include "ngs_bsq.h"
+#include "ngs_bsq_flex.h"
 
 
 static char *bsq_parser_name = NULL;

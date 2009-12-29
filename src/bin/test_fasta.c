@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 
-#include "fasta.h"
+#include "ngs_fasta.h"
 
 typedef struct  _TestFastaData TestFastaData;
 

@@ -16,7 +16,7 @@
  * FlexBsq.l
  */
 
-#include "bsq_flex.h"
+#include "ngs_bsq_flex.h"
 
 typedef struct _FlexBsqData FlexBsqData;
 

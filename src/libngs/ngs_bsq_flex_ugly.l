@@ -16,7 +16,7 @@
  * FlexBsq.l
  */
 
-#include "bsq_flex.h"
+#include "ngs_bsq_flex.h"
 
 #define MAX_STRING_SIZE 512
 

@@ -2,8 +2,8 @@
  *
  */
 
-#ifndef __FASTQ_H__
-#define __FASTQ_H__
+#ifndef __NGS_FASTQ_H__
+#define __NGS_FASTQ_H__
 
 #include <glib.h>
 
@@ -54,7 +54,7 @@ void iter_fastq (char         *path,
 GOptionGroup* get_fastq_option_group (void);
 
 
-#endif /* __FASTQ_H__ */
+#endif /* __NGS_FASTQ_H__ */
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */

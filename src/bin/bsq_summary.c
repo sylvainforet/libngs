@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "bsq.h"
+#include "ngs_bsq.h"
 
 typedef struct  _BsqSummaryData BsqSummaryData;
 

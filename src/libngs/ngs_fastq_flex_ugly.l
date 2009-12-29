@@ -16,7 +16,7 @@
  * FlexFastqUgly.l
  */
 
-#include "fastq_flex.h"
+#include "ngs_fastq_flex.h"
 
 #define MAX_STRING_SIZE 512
 
