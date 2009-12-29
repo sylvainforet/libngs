@@ -55,5 +55,6 @@ AC_CONFIG_FILES([
 	src/Makefile
 	src/bin/Makefile
 	src/libngs/Makefile
+	src/test/Makefile
 	])
 AC_OUTPUT

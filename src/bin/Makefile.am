@@ -8,15 +8,9 @@ INCLUDES = \
 	-I$(top_srcdir)/src/libngs
 
 bin_PROGRAMS = \
-	test_fasta \
 	fastq2fasta \
 	letter_qual \
 	bsq_summary
-
-test_fasta_LDADD = \
-	$(top_builddir)/src/libngs/libngsfasta.la
-test_fasta_SOURCES = \
-	test_fasta.c
 
 fastq2fasta_LDADD = \
 	$(top_builddir)/src/libngs/libngsfastq.la

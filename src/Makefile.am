@@ -2,6 +2,7 @@
 
 SUBDIRS = \
 	libngs \
+	test \
 	bin
 
 MAINTAINERCLEANFILES = \
