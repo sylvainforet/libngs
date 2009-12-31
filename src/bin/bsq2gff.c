@@ -103,20 +103,21 @@ iter_func (BsqRecord   *rec,
        (rec->strand == BSQ_STRAND_WC ||
         rec->strand == BSQ_STRAND_CC))))
     {
-      g_print ("%s\t"     /* Reference */
-               "%s\t"     /* Source */
-               "read\t"   /* Method */
-               "%ld\t"    /* From */
-               "%ld\t"    /* To */
-               ".\t"      /* Score */
-               "%s\t"     /* Strand */
-               ".\t"      /* Phase */
-               "read %s\n",    /* Group */
+      g_print ("%s\t"        /* Reference */
+               "%s\t"        /* Source */
+               "bsmap\t"     /* Method */
+               "%ld\t"       /* From */
+               "%ld\t"       /* To */
+               ".\t"         /* Score */
+               "%s\t"        /* Strand */
+               ".\t"         /* Phase */
+               "read %s\n",  /* Group */
                rec->ref,
                data->source,
                rec->loc,
                rec->loc + rec->size,
-               (rec->strand == BSQ_STRAND_W || rec->strand == BSQ_STRAND_C) ? "+" : "-",
+               (rec->strand == BSQ_STRAND_W ||
+                rec->strand == BSQ_STRAND_C) ? "+" : "-",
                rec->name);
     }
   return 1;
