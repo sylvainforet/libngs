@@ -10,7 +10,8 @@ INCLUDES = \
 bin_PROGRAMS = \
 	fastq2fasta \
 	letter_qual \
-	bsq_summary
+	bsq_summary \
+	bsq2gff
 
 fastq2fasta_LDADD = \
 	$(top_builddir)/src/libngs/libngsfastq.la
@@ -26,6 +27,11 @@ bsq_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngsbsq.la
 bsq_summary_SOURCES = \
 	bsq_summary.c
+
+bsq2gff_LDADD = \
+	$(top_builddir)/src/libngs/libngsbsq.la
+bsq2gff_SOURCES = \
+	bsq2gff.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in
