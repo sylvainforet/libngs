@@ -1,1 +1,3 @@
-* At the moment the bsq parsre do not fill the size field.  Fix that.
+* Write a better fasta test and possibly tests for the other formats.
+
+* Some includes are probably not necessary.  Clean that up.

@@ -49,7 +49,8 @@ struct _FlexBsqData
 }
 
 <SEQ>[^ \t\n]+ {
-    yyextra->rec->seq = strdup (yytext);
+    yyextra->rec->seq  = strdup (yytext);
+    yyextra->rec->size = yyleng;
     BEGIN (FLAG);
 }
 

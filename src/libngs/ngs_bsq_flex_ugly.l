@@ -13,7 +13,7 @@
 
 %{
 /**
- * FlexBsq.l
+ * FlexBsqUgly.l
  */
 
 #include "ngs_bsq_flex.h"
@@ -55,6 +55,7 @@ struct _FlexBsqData
     size_t n = MIN (MAX_STRING_SIZE, yyleng);
     memcpy (yyextra->rec.seq, yytext, n);
     yyextra->rec.seq[n] = '\0';
+    yyextra->rec.size   = n;
     BEGIN (FLAG);
 }
 

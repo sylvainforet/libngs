@@ -13,7 +13,7 @@
 
 %{
 /**
- * FlexBsq.l
+ * FlexBsqLine.l
  */
 
 #include "ngs_bsq_flex.h"
