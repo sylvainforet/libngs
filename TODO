@@ -1,3 +1,7 @@
 * Write a better fasta test and possibly tests for the other formats.
 
 * Some includes are probably not necessary.  Clean that up.
+
+* For the various applications in the bin directory, renaming the
+  application-specific data to something generic like `CallbackData' might be a
+  good idea.

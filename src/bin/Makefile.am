@@ -1,3 +1,6 @@
+EXTRA_DIST = \
+	template.c
+
 AM_CPPFLAGS = \
 	@GLIB_CFLAGS@
 
@@ -10,6 +13,7 @@ INCLUDES = \
 bin_PROGRAMS = \
 	fastq2fasta \
 	letter_qual \
+	qual_summary \
 	bsq_summary \
 	bsq2gff
 
@@ -32,6 +36,11 @@ bsq2gff_LDADD = \
 	$(top_builddir)/src/libngs/libngsbsq.la
 bsq2gff_SOURCES = \
 	bsq2gff.c
+
+qual_summary_LDADD = \
+	$(top_builddir)/src/libngs/libngsfastq.la
+qual_summary_SOURCES = \
+	qual_summary.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in
