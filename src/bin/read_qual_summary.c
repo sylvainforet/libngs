@@ -17,18 +17,23 @@ struct _CallbackData
   unsigned long int  qual[40];
 
   char              *input_path;
+
+  unsigned int       all;
 };
 
-static void parse_args (CallbackData      *data,
-                        int               *argc,
-                        char            ***argv);
+static void parse_args    (CallbackData      *data,
+                           int               *argc,
+                           char            ***argv);
 
-static int  iter_func  (FastqSeq          *fastq,
-                        CallbackData      *data);
+static int  iter_func_all (FastqSeq          *fastq,
+                           CallbackData      *data);
 
-static void init_qual  (CallbackData      *data);
+static int  iter_func     (FastqSeq          *fastq,
+                           CallbackData      *data);
 
-static void print_qual (CallbackData      *data);
+static void init_qual     (CallbackData      *data);
+
+static void print_qual    (CallbackData      *data);
 
 int
 main (int    argc,
@@ -39,10 +44,16 @@ main (int    argc,
 
   parse_args (&data, &argc, &argv);
 
-  iter_fastq (data.input_path,
-              (FastqIterFunc)iter_func,
-              &data,
-              &error);
+  if (data.all)
+    iter_fastq (data.input_path,
+                (FastqIterFunc)iter_func_all,
+                &data,
+                &error);
+  else
+    iter_fastq (data.input_path,
+                (FastqIterFunc)iter_func,
+                &data,
+                &error);
 
   if (error)
     {
@@ -52,7 +63,8 @@ main (int    argc,
       return 1;
     }
 
-  print_qual (&data);
+  if (!data.all)
+    print_qual (&data);
 
   return 0;
 }
@@ -64,13 +76,15 @@ parse_args (CallbackData      *data,
 {
   GOptionEntry entries[] =
     {
-      /*{"fast", 'f', 0, G_OPTION_ARG_NONE, &data->fast, "Faster and less robust method (use at your own risk)", NULL},*/
+      {"all", 'a', 0, G_OPTION_ARG_NONE, &data->all, "do not bin the qualities, print quality for each read", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
 
-  context = g_option_context_new ("FILE - Computes distribution of the base qualities");
+  data->all = 0;
+
+  context = g_option_context_new ("FILE - distribution of reads qualities, or lists all reads qualities (-a option)");
   g_option_context_add_group (context, get_fastq_option_group ());
   g_option_context_add_main_entries (context, entries, NULL);
   if (!g_option_context_parse (context, argc, argv, &error))
@@ -87,7 +101,23 @@ parse_args (CallbackData      *data,
     }
   data->input_path = (*argv)[1];
 
-  init_qual (data);
+  if (!data->all)
+    init_qual (data);
+}
+
+static int
+iter_func_all (FastqSeq     *fastq,
+               CallbackData *data)
+{
+  int i;
+  int read_qual = 0;
+
+  for (i = 0; i < fastq->size; i++)
+    read_qual += fastq->qual[i] - 64;
+
+  g_print ("%f\n", ((float)read_qual) / fastq->size);
+
+  return 1;
 }
 
 static int
@@ -95,9 +125,14 @@ iter_func (FastqSeq     *fastq,
            CallbackData *data)
 {
   int i;
+  int read_qual = 0;
+  int read_mean = 0;
 
   for (i = 0; i < fastq->size; i++)
-    data->qual[fastq->qual[i] - 64]++;
+    read_qual += fastq->qual[i] - 64;
+
+  read_mean = 0.5 + ((float)read_qual) / fastq->size;
+  data->qual[read_mean]++;
 
   return 1;
 }

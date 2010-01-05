@@ -14,6 +14,7 @@ bin_PROGRAMS = \
 	fastq2fasta \
 	letter_qual \
 	qual_summary \
+	read_qual_summary \
 	bsq_summary \
 	bsq2gff
 
@@ -41,6 +42,11 @@ qual_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngsfastq.la
 qual_summary_SOURCES = \
 	qual_summary.c
+
+read_qual_summary_LDADD = \
+	$(top_builddir)/src/libngs/libngsfastq.la
+read_qual_summary_SOURCES = \
+	read_qual_summary.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in
