@@ -8,26 +8,26 @@
 #include "ngs_bsq.h"
 
 
-typedef struct _Bsq2GffData Bsq2GffData;
+typedef struct _CallbackData CallbackData;
 
-struct _Bsq2GffData
+struct _CallbackData
 {
   char *source;
   char *input_path;
 };
 
-static void parse_args (Bsq2GffData       *data,
+static void parse_args (CallbackData      *data,
                         int               *argc,
                         char            ***argv);
 
 static int  iter_func  (BsqRecord         *rec,
-                        Bsq2GffData       *data);
+                        CallbackData      *data);
 
 int
 main (int    argc,
       char **argv)
 {
-  Bsq2GffData  data;
+  CallbackData data;
   GError      *error = NULL;
 
   parse_args (&data, &argc, &argv);
@@ -49,7 +49,7 @@ main (int    argc,
 }
 
 static void
-parse_args (Bsq2GffData    *data,
+parse_args (CallbackData      *data,
             int               *argc,
             char            ***argv)
 {
@@ -87,8 +87,8 @@ parse_args (Bsq2GffData    *data,
 }
 
 static int
-iter_func (BsqRecord   *rec,
-           Bsq2GffData *data)
+iter_func (BsqRecord    *rec,
+           CallbackData *data)
 {
   int name_len;
 

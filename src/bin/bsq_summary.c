@@ -7,9 +7,9 @@
 
 #include "ngs_bsq.h"
 
-typedef struct  _BsqSummaryData BsqSummaryData;
+typedef struct  _CallbackData CallbackData;
 
-struct _BsqSummaryData
+struct _CallbackData
 {
   unsigned long int  counts[2][BSQ_STRAND_NB][BSQ_MAP_FLAG_NB];
   char              *input_path;
@@ -18,22 +18,22 @@ struct _BsqSummaryData
   int                good;
 };
 
-static int  iter_func     (BsqRecord         *rec,
-                           BsqSummaryData    *data);
+static int  iter_func     (BsqRecord        *rec,
+                           CallbackData     *data);
 
-static void parse_args    (BsqSummaryData    *data,
+static void parse_args    (CallbackData      *data,
                            int               *argc,
                            char            ***argv);
 
-static void print_symmary (BsqSummaryData    *data);
+static void print_symmary (CallbackData      *data);
 
-static void init_counts   (BsqSummaryData    *data);
+static void init_counts   (CallbackData      *data);
 
 int
 main (int    argc,
       char **argv)
 {
-  BsqSummaryData  data;
+  CallbackData    data;
   GError         *error = NULL;
 
   parse_args (&data, &argc, &argv);
@@ -55,7 +55,7 @@ main (int    argc,
 }
 
 static void
-parse_args (BsqSummaryData    *data,
+parse_args (CallbackData      *data,
             int               *argc,
             char            ***argv)
 {
@@ -98,8 +98,8 @@ parse_args (BsqSummaryData    *data,
 }
 
 static int
-iter_func (BsqRecord      *rec,
-           BsqSummaryData *data)
+iter_func (BsqRecord    *rec,
+           CallbackData *data)
 {
 #if 0
   if (rec->flag == BSQ_MAP_UM ||
@@ -157,7 +157,7 @@ iter_func (BsqRecord      *rec,
 }
 
 static void
-print_symmary (BsqSummaryData *data)
+print_symmary (CallbackData *data)
 {
   int i;
   int j;
@@ -239,7 +239,7 @@ print_symmary (BsqSummaryData *data)
 }
 
 static void
-init_counts (BsqSummaryData *data)
+init_counts (CallbackData *data)
 {
   int i;
   int j;

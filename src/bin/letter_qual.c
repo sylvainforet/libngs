@@ -9,9 +9,9 @@
 
 #define N_QUAL 40
 
-typedef struct _LetterQualData LetterQualData;
+typedef struct _CallbackData CallbackData;
 
-struct _LetterQualData
+struct _CallbackData
 {
   unsigned long int *quals[128];
 
@@ -26,25 +26,25 @@ struct _LetterQualData
   unsigned int       fast;
 };
 
-static void parse_args            (LetterQualData    *data,
+static void parse_args            (CallbackData      *data,
                                    int               *argc,
                                    char            ***argv);
 
 static int  iter_func             (FastqSeq          *fastq,
-                                   LetterQualData    *data);
+                                   CallbackData      *data);
 
 static int  iter_func_fast        (FastqSeq          *fastq,
-                                   LetterQualData    *data);
+                                   CallbackData      *data);
 
-static void init_letter_qual_data (LetterQualData    *data);
+static void init_letter_qual_data (CallbackData      *data);
 
-static void print_letter_qual     (LetterQualData    *data);
+static void print_letter_qual     (CallbackData      *data);
 
 int
 main (int    argc,
       char **argv)
 {
-  LetterQualData  data;
+  CallbackData    data;
   GError         *error = NULL;
 
   parse_args (&data, &argc, &argv);
@@ -73,7 +73,7 @@ main (int    argc,
 }
 
 static void
-parse_args (LetterQualData    *data,
+parse_args (CallbackData      *data,
             int               *argc,
             char            ***argv)
 {
@@ -113,7 +113,7 @@ parse_args (LetterQualData    *data,
 
 static int
 iter_func (FastqSeq       *fastq,
-           LetterQualData *data)
+           CallbackData   *data)
 {
   unsigned int i;
 
@@ -162,7 +162,7 @@ iter_func (FastqSeq       *fastq,
 
 static int
 iter_func_fast (FastqSeq       *fastq,
-                LetterQualData *data)
+                CallbackData   *data)
 {
   unsigned int i;
 
@@ -177,7 +177,7 @@ iter_func_fast (FastqSeq       *fastq,
 }
 
 static void
-init_letter_qual_data (LetterQualData  *data)
+init_letter_qual_data (CallbackData  *data)
 {
   int i;
 
@@ -203,7 +203,7 @@ init_letter_qual_data (LetterQualData  *data)
 }
 
 static void
-print_letter_qual (LetterQualData *data)
+print_letter_qual (CallbackData *data)
 {
   int i;
 

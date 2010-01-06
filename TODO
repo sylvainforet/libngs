@@ -2,10 +2,6 @@
 
 * Some includes are probably not necessary.  Clean that up.
 
-* For the various applications in the bin directory, renaming the
-  application-specific data to something generic like `CallbackData' might be a
-  good idea.
-
 * Fix several bugs in fastq2fasta:
   + closing stdout
   + closing the same file twice (although, this may be up to the user ...)

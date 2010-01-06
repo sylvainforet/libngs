@@ -7,9 +7,9 @@
 
 #include "ngs_fastq.h"
 
-typedef struct _Fastq2FastaData Fastq2FastaData;
+typedef struct _CallbackData CallbackData;
 
-struct _Fastq2FastaData
+struct _CallbackData
 {
   char       *input_path;
   char       *out_seq_path;
@@ -20,19 +20,19 @@ struct _Fastq2FastaData
   int         do_qual;
 };
 
-static int  iter_func  (FastqSeq          *fastq,
-                        Fastq2FastaData   *data);
+static int  iter_func  (FastqSeq       *fastq,
+                        CallbackData   *data);
 
-static void parse_args (Fastq2FastaData   *data,
-                        int               *argc,
-                        char            ***argv);
+static void parse_args (CallbackData   *data,
+                        int            *argc,
+                        char         ***argv);
 
 int
 main (int    argc,
       char **argv)
 {
-  Fastq2FastaData data;
-  GError         *error = NULL;
+  CallbackData data;
+  GError      *error = NULL;
 
   parse_args (&data, &argc, &argv);
 
@@ -74,9 +74,9 @@ main (int    argc,
 }
 
 static void
-parse_args (Fastq2FastaData   *data,
-            int               *argc,
-            char            ***argv)
+parse_args (CallbackData   *data,
+            int            *argc,
+            char         ***argv)
 {
   GOptionEntry entries[] =
     {
@@ -152,8 +152,8 @@ parse_args (Fastq2FastaData   *data,
 }
 
 static int
-iter_func (FastqSeq        *fastq,
-           Fastq2FastaData *data)
+iter_func (FastqSeq     *fastq,
+           CallbackData *data)
 {
   GError *error = NULL;
   int     ret   = 1;
