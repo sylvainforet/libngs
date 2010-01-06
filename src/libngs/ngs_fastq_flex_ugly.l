@@ -32,12 +32,17 @@ struct _FlexFastqData
 
 %}
 
+%x NAME
 %x SEQ
 %x QUAL
 
 %%
 
-^@.* {
+^@ {
+    BEGIN (NAME);
+}
+
+<NAME>.* {
     size_t n = MIN (MAX_STRING_SIZE, yyleng);
     memcpy (yyextra->fastq.name, yytext, n);
     yyextra->fastq.name[n] = '\0';

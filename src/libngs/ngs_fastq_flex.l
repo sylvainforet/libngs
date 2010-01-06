@@ -30,12 +30,17 @@ struct _FlexFastqData
 
 %}
 
+%x NAME
 %x SEQ
 %x QUAL
 
 %%
 
-^@.* {
+^@ {
+    BEGIN (NAME);
+}
+
+<NAME>.* {
     yyextra->fastq       = fastq_seq_new ();
     yyextra->fastq->name = strdup (yytext);
     BEGIN (SEQ);

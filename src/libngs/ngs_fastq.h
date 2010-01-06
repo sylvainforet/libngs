@@ -28,6 +28,8 @@ FastqSeq*   fastq_seq_new    (void);
 
 void        fastq_seq_free   (FastqSeq *fastq);
 
+FastqSeq*   fastq_seq_copy   (FastqSeq *fastq);
+
 /**
  * Signature for the functions to be called by iter_fastq.
  * If the function returns 0, the iteration is interupted,

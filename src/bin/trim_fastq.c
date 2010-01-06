@@ -44,7 +44,8 @@ main (int    argc,
 
   if (error)
     {
-      g_printerr ("[ERROR] Iterating sequences failed: %s\n", error->message);
+      g_printerr ("[ERROR] Iterating sequences failed: %s\n",
+                  error->message);
       g_error_free (error);
       error = NULL;
       return 1;
@@ -56,7 +57,8 @@ main (int    argc,
           g_io_channel_shutdown (data.out_channel, TRUE, &error);
           if (error)
             {
-              g_printerr ("[ERROR] Closing output file failed: %s\n", error->message);
+              g_printerr ("[ERROR] Closing output file failed: %s\n",
+                          error->message);
               g_error_free (error);
               error = NULL;
             }
@@ -74,6 +76,7 @@ parse_args (CallbackData      *data,
 {
   GOptionEntry entries[] =
     {
+      {"out",   'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output file", NULL},
       {"start", 's', 0, G_OPTION_ARG_INT, &data->start, "Number of positions to trim at the start", NULL},
       {"end",   'e', 0, G_OPTION_ARG_INT, &data->end,   "Number of positions to trim at the end", NULL},
       {NULL}
@@ -83,7 +86,7 @@ parse_args (CallbackData      *data,
 
   data->start       = 0;
   data->end         = 0;
-  data->output_path = NULL;
+  data->output_path = "-";
   data->out_channel = NULL;
   data->use_stdout  = 1;
 
@@ -104,7 +107,7 @@ parse_args (CallbackData      *data,
     }
   data->input_path = (*argv)[1];
 
-  if (!data->output_path || (data->output_path[0] == '-' && data->output_path[1] == '\0'))
+  if (data->output_path[0] == '-' && data->output_path[1] == '\0')
     data->out_channel = g_io_channel_unix_new (STDOUT_FILENO);
   else
     {
@@ -129,15 +132,15 @@ iter_func (FastqSeq     *fastq,
 
   if (data->tot_trim > fastq->size)
     {
-      g_printerr ("[ERROR] trimming more than sequence length (trim: %d - length: %d)\n",
-                  data->tot_trim,
-                  fastq->size);
+      g_printerr ("[ERROR] trimming more than sequence length "
+                  "(trim: %d - length: %d)\n",
+                  data->tot_trim, fastq->size);
       exit (1);
     }
 
   buffer = g_string_sized_new (512);
   buffer = g_string_append_c (buffer, '@');
-  buffer = g_string_append (buffer, fastq->name + 1);
+  buffer = g_string_append (buffer, fastq->name);
   buffer = g_string_append_c (buffer, '\n');
 
   fastq->seq[fastq->size - data->end] = '\0';
@@ -145,7 +148,7 @@ iter_func (FastqSeq     *fastq,
   buffer = g_string_append_c (buffer, '\n');
 
   buffer = g_string_append_c (buffer, '+');
-  buffer = g_string_append (buffer, fastq->name + 1);
+  buffer = g_string_append (buffer, fastq->name);
   buffer = g_string_append_c (buffer, '\n');
 
   fastq->qual[fastq->size - data->end] = '\0';
@@ -159,7 +162,8 @@ iter_func (FastqSeq     *fastq,
                             &error);
   if (error)
     {
-      g_printerr ("[ERROR] Writing trimmed sequence failed: %s\n", error->message);
+      g_printerr ("[ERROR] Writing trimmed sequence failed: %s\n",
+                  error->message);
       g_error_free (error);
       error = NULL;
       ret   = 0;

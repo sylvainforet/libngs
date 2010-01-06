@@ -49,6 +49,23 @@ fastq_seq_free (FastqSeq *fastq)
     }
 }
 
+FastqSeq*
+fastq_seq_copy (FastqSeq *fastq)
+{
+  FastqSeq *seq = NULL;
+
+  if (fastq)
+    {
+      seq       = fastq_seq_new ();
+      seq->name = strdup (fastq->name);
+      seq->seq  = strdup (fastq->seq);
+      seq->qual = strdup (fastq->qual);
+      seq->size = fastq->size;
+    }
+
+  return seq;
+}
+
 void
 iter_fastq (char         *path,
             FastqIterFunc func,
@@ -119,7 +136,8 @@ iter_fastq_simple (char         *path,
           /* Sequence header */
           line[endl]  = '\0';
           fastq       = fastq_seq_new ();
-          fastq->name = line;
+          fastq->name = strdup (line + 1);
+          g_free (line);
 
           /* Sequence */
           g_io_channel_read_line (channel, &line, &length, &endl, &tmp_err);
@@ -229,20 +247,23 @@ iter_fastq_ugly  (char         *path,
               qual_idx = 0;
               status   = 1;
             }
-          /* name */
+          /* `@' before name */
           if (status == 1)
+            status = 2;
+          /* name */
+          else if (status == 2)
             {
               if (buffer[i] == '\n')
                 {
                   name[name_idx] = '\0';
-                  status = 2;
+                  status = 3;
                 }
               else if (name_idx == MAX_STRING_SIZE)
                 {
                   if (buffer[i] == '\n')
                     {
                       name[name_idx] = '\0';
-                      status = 2;
+                      status = 3;
                     }
                 }
               else
@@ -252,19 +273,19 @@ iter_fastq_ugly  (char         *path,
                 }
             }
           /* sequence */
-          else if (status == 2)
+          else if (status == 3)
             {
               if (buffer[i] == '\n')
                 {
                   seq[seq_idx] = '\0';
-                  status = 3;
+                  status = 4;
                 }
               else if (seq_idx == MAX_STRING_SIZE)
                 {
                   if (buffer[i] == '\n')
                     {
                       seq[seq_idx] = '\0';
-                      status = 3;
+                      status = 4;
                     }
                 }
               else
@@ -274,13 +295,13 @@ iter_fastq_ugly  (char         *path,
                 }
             }
           /* name again */
-          else if (status == 3)
+          else if (status == 4)
             {
               if (buffer[i] == '\n')
-                status = 4;
+                status = 5;
             }
           /* quality */
-          else if (status == 4)
+          else if (status == 5)
             {
               if (buffer[i] == '\n')
                 {
@@ -318,7 +339,7 @@ iter_fastq_ugly  (char         *path,
         }
     }
   while (1);
-  if ((status == 0 || status == 4) && fastq)
+  if ((status == 0 || status == 5) && fastq)
     {
       fastq->size = MIN (seq_idx, qual_idx);
       func (fastq, data);

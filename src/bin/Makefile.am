@@ -13,6 +13,7 @@ INCLUDES = \
 bin_PROGRAMS = \
 	fastq2fasta \
 	trim_fastq \
+	sample_fastq \
 	letter_qual \
 	qual_summary \
 	read_qual_summary \
@@ -53,6 +54,11 @@ trim_fastq_LDADD = \
 	$(top_builddir)/src/libngs/libngsfastq.la
 trim_fastq_SOURCES = \
 	trim_fastq.c
+
+sample_fastq_LDADD = \
+	$(top_builddir)/src/libngs/libngsfastq.la
+sample_fastq_SOURCES = \
+	sample_fastq.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in

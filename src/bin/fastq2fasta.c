@@ -80,10 +80,10 @@ parse_args (CallbackData   *data,
 {
   GOptionEntry entries[] =
     {
-      {"sequence", 's', 0, G_OPTION_ARG_NONE,   &data->do_seq,        "Extract sequences", NULL},
-      {"quality" , 'q', 0, G_OPTION_ARG_NONE,   &data->do_qual,       "Extract qualities", NULL},
-      {"seqout"  , 'o', 0, G_OPTION_ARG_STRING, &data->out_seq_path,  "Sequences file"   , NULL},
-      {"qualout" , 'u', 0, G_OPTION_ARG_STRING, &data->out_qual_path, "Qualities file"   , NULL},
+      {"sequence", 's', 0, G_OPTION_ARG_NONE,     &data->do_seq,        "Extract sequences", NULL},
+      {"quality" , 'q', 0, G_OPTION_ARG_NONE,     &data->do_qual,       "Extract qualities", NULL},
+      {"seqout"  , 'o', 0, G_OPTION_ARG_FILENAME, &data->out_seq_path,  "Sequences file"   , NULL},
+      {"qualout" , 'u', 0, G_OPTION_ARG_FILENAME, &data->out_qual_path, "Qualities file"   , NULL},
       {NULL}
     };
   GError         *error = NULL;
@@ -164,7 +164,7 @@ iter_func (FastqSeq     *fastq,
 
       buffer = g_string_sized_new (512);
       buffer = g_string_append_c (buffer, '>');
-      buffer = g_string_append (buffer, fastq->name + 1);
+      buffer = g_string_append (buffer, fastq->name);
       buffer = g_string_append_c (buffer, '\n');
       buffer = g_string_append_len (buffer, fastq->seq, fastq->size);
       buffer = g_string_append_c (buffer, '\n');
@@ -190,7 +190,7 @@ iter_func (FastqSeq     *fastq,
 
       buffer = g_string_sized_new (512);
       buffer = g_string_append_c (buffer, '>');
-      buffer = g_string_append (buffer, fastq->name + 1);
+      buffer = g_string_append (buffer, fastq->name);
       buffer = g_string_append_c (buffer, '\n');
       for (i = 0; i < fastq->size; i++)
         buffer = g_string_append (buffer, fastq_qual_char_2_string[(int)fastq->qual[i]]);
