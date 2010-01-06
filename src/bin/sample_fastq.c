@@ -115,6 +115,7 @@ parse_args (CallbackData   *data,
     data->output_channel = g_io_channel_unix_new (STDOUT_FILENO);
   else
     {
+      data->use_stdout     = 0;
       data->output_channel = g_io_channel_new_file (data->output_path, "w", &error);
       if (error)
         {

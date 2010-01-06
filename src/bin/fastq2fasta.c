@@ -18,6 +18,9 @@ struct _CallbackData
   GIOChannel *out_qual_channel;
   int         do_seq;
   int         do_qual;
+
+  int         seq_use_stdout: 1;
+  int         qual_use_stdout: 1;
 };
 
 static int  iter_func  (FastqSeq       *fastq,
@@ -49,23 +52,29 @@ main (int    argc,
 
   if (data.out_seq_channel)
     {
-      g_io_channel_shutdown (data.out_seq_channel, TRUE, &error);
-      if (error)
+      if (!data.seq_use_stdout)
         {
-          g_printerr ("[ERROR] Closing sequence output file failed: %s\n", error->message);
-          g_error_free (error);
-          error = NULL;
+          g_io_channel_shutdown (data.out_seq_channel, TRUE, &error);
+          if (error)
+            {
+              g_printerr ("[ERROR] Closing sequence output file failed: %s\n", error->message);
+              g_error_free (error);
+              error = NULL;
+            }
         }
       g_io_channel_unref (data.out_seq_channel);
     }
   if (data.out_qual_channel)
     {
-      g_io_channel_shutdown (data.out_qual_channel, TRUE, &error);
-      if (error)
+      if (!data.qual_use_stdout)
         {
-          g_printerr ("[ERROR] Closing quality output file failed: %s\n", error->message);
-          g_error_free (error);
-          error = NULL;
+          g_io_channel_shutdown (data.out_qual_channel, TRUE, &error);
+          if (error)
+            {
+              g_printerr ("[ERROR] Closing quality output file failed: %s\n", error->message);
+              g_error_free (error);
+              error = NULL;
+            }
         }
       g_io_channel_unref (data.out_qual_channel);
     }
@@ -95,6 +104,8 @@ parse_args (CallbackData   *data,
   data->out_qual_path    = NULL;
   data->out_seq_channel  = NULL;
   data->out_qual_channel = NULL;
+  data->seq_use_stdout   = 1;
+  data->qual_use_stdout  = 0;
 
   context = g_option_context_new ("FILE - Converts a fastq file to a fasta file");
   g_option_context_add_group (context, get_fastq_option_group ());
@@ -113,20 +124,28 @@ parse_args (CallbackData   *data,
     }
   data->input_path = (*argv)[1];
 
+  /* Give the filename implies do it */
   if (!data->do_seq && data->out_seq_path)
     data->do_seq = 1;
   if (!data->do_qual && data->out_qual_path)
         data->do_qual = 1;
+
+  /* Set default output to "-" (stdout) */
   if (data->do_seq && !data->out_seq_path)
         data->out_seq_path = "-";
   if (data->do_qual && !data->out_qual_path)
         data->out_qual_path = "-";
+
   if (data->do_seq)
     {
       if (data->out_seq_path[0] == '-' && data->out_seq_path[1] == '\0')
-        data->out_seq_channel = g_io_channel_unix_new (STDOUT_FILENO);
+        {
+          data->seq_use_stdout  = 1;
+          data->out_seq_channel = g_io_channel_unix_new (STDOUT_FILENO);
+        }
       else
         {
+          data->seq_use_stdout  = 0;
           data->out_seq_channel = g_io_channel_new_file (data->out_seq_path, "w", &error);
           if (error)
             {
@@ -138,9 +157,13 @@ parse_args (CallbackData   *data,
   if (data->do_qual)
     {
       if (data->out_qual_path[0] == '-' && data->out_qual_path[1] == '\0')
-        data->out_qual_channel = g_io_channel_unix_new (STDOUT_FILENO);
+        {
+          data->qual_use_stdout  = 1;
+          data->out_qual_channel = g_io_channel_unix_new (STDOUT_FILENO);
+        }
       else
         {
+          data->qual_use_stdout  = 0;
           data->out_qual_channel = g_io_channel_new_file (data->out_qual_path, "w", &error);
           if (error)
             {

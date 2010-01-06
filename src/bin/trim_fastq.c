@@ -16,7 +16,7 @@ struct _CallbackData
   int         tot_trim;
   char       *input_path;
   char       *output_path;
-  GIOChannel *out_channel;
+  GIOChannel *output_channel;
 
   int         use_stdout: 1;
 };
@@ -50,11 +50,11 @@ main (int    argc,
       error = NULL;
       return 1;
     }
-  if (data.out_channel)
+  if (data.output_channel)
     {
       if (!data.use_stdout)
         {
-          g_io_channel_shutdown (data.out_channel, TRUE, &error);
+          g_io_channel_shutdown (data.output_channel, TRUE, &error);
           if (error)
             {
               g_printerr ("[ERROR] Closing output file failed: %s\n",
@@ -63,7 +63,7 @@ main (int    argc,
               error = NULL;
             }
         }
-      g_io_channel_unref (data.out_channel);
+      g_io_channel_unref (data.output_channel);
     }
 
   return 0;
@@ -87,7 +87,7 @@ parse_args (CallbackData      *data,
   data->start       = 0;
   data->end         = 0;
   data->output_path = "-";
-  data->out_channel = NULL;
+  data->output_channel = NULL;
   data->use_stdout  = 1;
 
   context = g_option_context_new ("FILE - trims the beginning and end of fastq reads");
@@ -108,16 +108,16 @@ parse_args (CallbackData      *data,
   data->input_path = (*argv)[1];
 
   if (data->output_path[0] == '-' && data->output_path[1] == '\0')
-    data->out_channel = g_io_channel_unix_new (STDOUT_FILENO);
+    data->output_channel = g_io_channel_unix_new (STDOUT_FILENO);
   else
     {
-      data->out_channel = g_io_channel_new_file (data->output_path, "w", &error);
+      data->use_stdout     = 0;
+      data->output_channel = g_io_channel_new_file (data->output_path, "w", &error);
       if (error)
         {
           g_printerr ("[ERROR] Opening output file failed: %s\n", error->message);
           exit (1);
         }
-      data->use_stdout = 0;
     }
   data->tot_trim = data->start + data->end;
 }
@@ -155,7 +155,7 @@ iter_func (FastqSeq     *fastq,
   buffer = g_string_append (buffer, fastq->qual + data->start);
   buffer = g_string_append_c (buffer, '\n');
 
-  g_io_channel_write_chars (data->out_channel,
+  g_io_channel_write_chars (data->output_channel,
                             buffer->str,
                             -1,
                             NULL,

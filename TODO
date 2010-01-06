@@ -3,5 +3,8 @@
 * Some includes are probably not necessary.  Clean that up.
 
 * Fix several bugs in fastq2fasta:
-  + closing stdout
-  + closing the same file twice (although, this may be up to the user ...)
+  + opening the same file twice
+
+* Valgrind
+
+* Check the behavior of the program with pathological pathnames such as "".
