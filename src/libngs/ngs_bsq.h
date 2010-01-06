@@ -7,10 +7,6 @@
 
 #include <glib.h>
 
-/************/
-/* FastqSeq */
-/************/
-
 typedef enum
 {
   BSQ_STRAND_W = 0,
@@ -34,6 +30,10 @@ BsqMapFlag;
 
 extern char *strand_names[];
 extern char *map_flag_names[];
+
+/*************/
+/* BsqRecord */
+/*************/
 
 typedef struct _BsqRecord BsqRecord;
 
@@ -65,7 +65,7 @@ typedef int (*BsqIterFunc) (BsqRecord *rec,
                             void      *data);
 
 /**
- * Iterates over all FastqSeq in a file.
+ * Iterates over all BsqSeq in a file.
  * If path is '-', reads from stdin.
  */
 
@@ -75,7 +75,7 @@ void iter_bsq (char         *path,
                GError      **error);
 
 /**
- * Get the option group for the fastq parsing system
+ * Get the option group for the bsq parsing system
  */
 
 GOptionGroup* get_bsq_option_group (void);
