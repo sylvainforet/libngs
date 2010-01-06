@@ -12,11 +12,11 @@ INCLUDES = \
 
 bin_PROGRAMS = \
 	fastq2fasta \
-	trim_fastq \
-	sample_fastq \
-	letter_qual \
-	qual_summary \
-	read_qual_summary \
+	fastq_trim \
+	fastq_sample \
+	fastq_letter_qual \
+	fastq_base_qual_summary \
+	fastq_read_qual_summary \
 	bsq_summary \
 	bsq2gff
 
@@ -25,10 +25,10 @@ fastq2fasta_LDADD = \
 fastq2fasta_SOURCES = \
 	fastq2fasta.c
 
-letter_qual_LDADD = \
+fastq_letter_qual_LDADD = \
 	$(top_builddir)/src/libngs/libngsfastq.la
-letter_qual_SOURCES = \
-	letter_qual.c
+fastq_letter_qual_SOURCES = \
+	fastq_letter_qual.c
 
 bsq_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngsbsq.la
@@ -40,25 +40,25 @@ bsq2gff_LDADD = \
 bsq2gff_SOURCES = \
 	bsq2gff.c
 
-qual_summary_LDADD = \
+fastq_base_qual_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngsfastq.la
-qual_summary_SOURCES = \
-	qual_summary.c
+fastq_base_qual_summary_SOURCES = \
+	fastq_base_qual_summary.c
 
-read_qual_summary_LDADD = \
+fastq_read_qual_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngsfastq.la
-read_qual_summary_SOURCES = \
-	read_qual_summary.c
+fastq_read_qual_summary_SOURCES = \
+	fastq_read_qual_summary.c
 
-trim_fastq_LDADD = \
+fastq_trim_LDADD = \
 	$(top_builddir)/src/libngs/libngsfastq.la
-trim_fastq_SOURCES = \
-	trim_fastq.c
+fastq_trim_SOURCES = \
+	fastq_trim.c
 
-sample_fastq_LDADD = \
+fastq_sample_LDADD = \
 	$(top_builddir)/src/libngs/libngsfastq.la
-sample_fastq_SOURCES = \
-	sample_fastq.c
+fastq_sample_SOURCES = \
+	fastq_sample.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in
