@@ -1,9 +1,8 @@
-## Process this file with automake to produce Makefile.in
-
 SUBDIRS = \
 	libngs \
-	test \
-	bin
+	bin \
+	scripts \
+	test
 
 MAINTAINERCLEANFILES = \
 	Makefile.in

@@ -1,0 +1,40 @@
+#!/bin/bash
+
+BIN_NAME=$(basename $0)
+
+print_usage_and_exit()
+{
+    echo "Usage: $BIN_NAME N PAIR1_FILE PAIR2_FILE"
+    exit 1
+}
+
+do_cat()
+{
+    MATCH_GZ=$(expr $1 : ".*\.gz")
+    if [ $MATCH_GZ -gt 0 ]
+    then
+        zcat $1
+    else
+        cat $1
+    fi
+}
+
+[ $1 ] || print_usage_and_exit
+[ $2 ] || print_usage_and_exit
+[ $3 ] || print_usage_and_exit
+
+export PATH=$PATH:@bindir@
+
+BASE_1=$(basename $2)
+BASE_2=$(basename $3)
+BASE_1="${BASE_1/.gz/}"
+BASE_2="${BASE_2/.gz/}"
+
+OUTPUT_FILE_1="${BASE_1}_samples_${1}.fastq"
+OUTPUT_FILE_2="${BASE_2}_samples_${1}.fastq"
+
+do_cat $2 | fastq_sample -n $1 -o $OUTPUT_FILE_1 -
+TMP_NAMES=$(tempfile)
+grep "^@" $OUTPUT_FILE_1 | sed 's/^@//g ; s/1$/2/g' > $TMP_NAMES
+do_cat $3 | fastq_fetch -i $TMP_NAMES -o $OUTPUT_FILE_2 -
+rm -f $TMP_NAMES
