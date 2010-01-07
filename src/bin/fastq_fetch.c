@@ -212,7 +212,7 @@ print_querries (CallbackData *data)
     {
       FastqSeq *seq;
 
-      seq = (FastqSeq*) g_hash_table_lookup (data->querries_hash, *tmp);
+      seq = g_hash_table_lookup (data->querries_hash, *tmp);
       if (seq)
         {
           GError   *error = NULL;
