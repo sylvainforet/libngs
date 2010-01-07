@@ -36,6 +36,7 @@ struct _CallbackData
   char             *input_bsq;
 
   GHashTable       *reference_hash;
+  GString          *reference_seq;
   int              *reference_coverage;
 
   unsigned long int reference_size;
@@ -55,10 +56,7 @@ static void load_bsq        (CallbackData      *data);
 static int  iter_bsq_func   (BsqRecord         *rec,
                              CallbackData      *data);
 
-static int  intcmp          (const int         *i1,
-                             const int         *i2);
-
-static void  rle_encode     (CallbackData      *data);
+static void get_content     (CallbackData      *data);
 
 static void cleanup_data    (CallbackData      *data);
 
@@ -72,7 +70,7 @@ main (int    argc,
 
   load_fasta (&data);
   load_bsq (&data);
-  rle_encode (&data);
+  get_content (&data);
   cleanup_data (&data);
 
   return 0;
@@ -127,6 +125,7 @@ load_fasta (CallbackData *data)
                                                 g_str_equal,
                                                 g_free,
                                                 (GDestroyNotify)reference_hash_data_free);
+  data->reference_seq  = g_string_sized_new (1024 * 1024);
   iter_fasta (data->input_fasta,
               (FastaIterFunc)iter_fasta_func,
               data,
@@ -160,6 +159,8 @@ iter_fasta_func (FastaSeq     *seq,
   g_hash_table_insert (data->reference_hash,
                        strdup (seq->name),
                        hash_data);
+  data->reference_seq   = g_string_append (data->reference_seq,
+                                           seq->seq);
   return 1;
 }
 
@@ -179,10 +180,6 @@ load_bsq (CallbackData *data)
       cleanup_data (data);
       exit (1);
     }
-  qsort (data->reference_coverage,
-         data->reference_size,
-         sizeof (*data->reference_coverage),
-         (int(*)(const void*, const void*))intcmp);
 }
 
 static int
@@ -220,39 +217,108 @@ iter_bsq_func (BsqRecord    *rec,
   return 1;
 }
 
-static int
-intcmp (const int *i1,
-        const int *i2)
-{
-  return *i1 - *i2;
-}
-
-
 static void
-rle_encode (CallbackData *data)
+get_content (CallbackData *data)
 {
-  unsigned long int i;
-  int               current;
-  int               nb;
+  unsigned long int n_covered_A       = 0;
+  unsigned long int n_covered_T       = 0;
+  unsigned long int n_covered_G       = 0;
+  unsigned long int n_covered_C       = 0;
+  unsigned long int n_covered_N       = 0;
+  unsigned long int n_covered_tot     = 0;
+  unsigned long int n_non_covered_A   = 0;
+  unsigned long int n_non_covered_T   = 0;
+  unsigned long int n_non_covered_G   = 0;
+  unsigned long int n_non_covered_C   = 0;
+  unsigned long int n_non_covered_N   = 0;
+  unsigned long int n_non_covered_tot = 0;
+  unsigned long int i                 = 0;
 
-  current = -1;
-  nb      = 0;
   for (i = 0; i < data->reference_size; i++)
     {
-      if (data->reference_coverage[i] != current)
+      const char c = data->reference_seq->str[i];
+
+      if (data->reference_coverage[i])
         {
-          current = data->reference_coverage[i];
-          if (nb > 0)
+          switch (c)
             {
-              g_print ("%d\n", nb);
-              nb = 0;
+              case 'A':
+                  n_covered_A++;
+                  break;
+              case 'T':
+                  n_covered_T++;
+                  break;
+              case 'G':
+                  n_covered_G++;
+                  break;
+              case 'C':
+                  n_covered_C++;
+                  break;
+              case 'N':
+                  n_covered_N++;
+                  break;
+              default:
+                  g_printerr ("[WARNING] Unknown character at position %ld: %c\n", i, c);
+                  break;
             }
-          g_print ("%d\t", current);
         }
-      nb++;
+      else
+        {
+          switch (c)
+            {
+              case 'A':
+                  n_non_covered_A++;
+                  break;
+              case 'T':
+                  n_non_covered_T++;
+                  break;
+              case 'G':
+                  n_non_covered_G++;
+                  break;
+              case 'C':
+                  n_non_covered_C++;
+                  break;
+              case 'N':
+                  n_non_covered_N++;
+                  break;
+              default:
+                  g_printerr ("[WARNING] Unknown character at position %ld: %c\n", i, c);
+                  break;
+            }
+        }
     }
-  if (nb > 0)
-    g_print ("%d\n", nb);
+  n_covered_tot     = n_covered_A +
+                      n_covered_T +
+                      n_covered_G +
+                      n_covered_C +
+                      n_covered_N;
+  n_non_covered_tot = n_non_covered_A +
+                      n_non_covered_T +
+                      n_non_covered_G +
+                      n_non_covered_C +
+                      n_non_covered_N;
+  g_print ("Composition of covered bases:\n"
+           " A: %9ld (%6.2f)\n"
+           " T: %9ld (%6.2f)\n"
+           " G: %9ld (%6.2f)\n"
+           " C: %9ld (%6.2f)\n"
+           " N: %9ld (%6.2f)\n",
+           n_covered_A, 100. * n_covered_A / n_covered_tot,
+           n_covered_T, 100. * n_covered_T / n_covered_tot,
+           n_covered_G, 100. * n_covered_G / n_covered_tot,
+           n_covered_C, 100. * n_covered_C / n_covered_tot,
+           n_covered_N, 100. * n_covered_N / n_covered_tot);
+  g_print ("Composition of non covered bases:\n"
+           " A: %9ld (%6.2f)\n"
+           " T: %9ld (%6.2f)\n"
+           " G: %9ld (%6.2f)\n"
+           " C: %9ld (%6.2f)\n"
+           " N: %9ld (%6.2f)\n",
+           n_non_covered_A, 100. * n_non_covered_A / n_non_covered_tot,
+           n_non_covered_T, 100. * n_non_covered_T / n_non_covered_tot,
+           n_non_covered_G, 100. * n_non_covered_G / n_non_covered_tot,
+           n_non_covered_C, 100. * n_non_covered_C / n_non_covered_tot,
+           n_non_covered_N, 100. * n_non_covered_N / n_non_covered_tot);
 }
 
 static void
@@ -267,6 +333,11 @@ cleanup_data (CallbackData *data)
     {
       g_free (data->reference_coverage);
       data->reference_coverage = NULL;
+    }
+  if (data->reference_seq)
+    {
+      g_string_free (data->reference_seq, TRUE);
+      data->reference_seq = NULL;
     }
 }
 

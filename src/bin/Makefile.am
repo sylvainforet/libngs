@@ -20,6 +20,7 @@ bin_PROGRAMS = \
 	fastq_trim \
 	bsq2gff \
 	bsq_coverage_distribution \
+	bsq_empty_regions_content \
 	bsq_summary
 
 fastq2fasta_LDADD = \
@@ -67,6 +68,12 @@ bsq_coverage_distribution_LDADD = \
 	$(top_builddir)/src/libngs/libngsfasta.la
 bsq_coverage_distribution_SOURCES = \
 	bsq_coverage_distribution.c
+
+bsq_empty_regions_content_LDADD = \
+	$(top_builddir)/src/libngs/libngsbsq.la \
+	$(top_builddir)/src/libngs/libngsfasta.la
+bsq_empty_regions_content_SOURCES = \
+	bsq_empty_regions_content.c
 
 bsq_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngsbsq.la
