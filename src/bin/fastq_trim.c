@@ -84,11 +84,11 @@ parse_args (CallbackData      *data,
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->start       = 0;
-  data->end         = 0;
-  data->output_path = "-";
+  data->start          = 0;
+  data->end            = 0;
+  data->output_path    = "-";
   data->output_channel = NULL;
-  data->use_stdout  = 1;
+  data->use_stdout     = 1;
 
   context = g_option_context_new ("FILE - trims the beginning and end of fastq reads");
   g_option_context_add_group (context, get_fastq_option_group ());

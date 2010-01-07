@@ -53,6 +53,9 @@ main (int    argc,
       g_error_free (error);
       error = NULL;
     }
+
+  print_samples (&data);
+
   if (data.output_channel)
     {
       if (!data.use_stdout)
@@ -68,7 +71,6 @@ main (int    argc,
       g_io_channel_unref (data.output_channel);
     }
   g_rand_free (data.rand);
-  print_samples (&data);
   free_samples (&data);
 
   return 0;
@@ -93,6 +95,7 @@ parse_args (CallbackData   *data,
   data->output_path    = "-";
   data->output_channel = NULL;
   data->samples        = NULL;
+  data->use_stdout     = 1;
 
   context = g_option_context_new ("FILE - Samples reads from a fastq file");
   g_option_context_add_group (context, get_fastq_option_group ());

@@ -8,3 +8,6 @@
 * Valgrind
 
 * Check the behavior of the program with pathological pathnames such as "".
+
+* Factorize the code that writes a FastqSeq to a channel.  Or at least the code
+  that turns a FastqSeq into a string.

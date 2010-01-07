@@ -12,11 +12,12 @@ INCLUDES = \
 
 bin_PROGRAMS = \
 	fastq2fasta \
-	fastq_trim \
-	fastq_sample \
-	fastq_letter_qual \
 	fastq_base_qual_summary \
+	fastq_fetch \
+	fastq_letter_qual \
 	fastq_read_qual_summary \
+	fastq_sample \
+	fastq_trim \
 	bsq_summary \
 	bsq2gff
 
@@ -59,6 +60,11 @@ fastq_sample_LDADD = \
 	$(top_builddir)/src/libngs/libngsfastq.la
 fastq_sample_SOURCES = \
 	fastq_sample.c
+
+fastq_fetch_LDADD = \
+	$(top_builddir)/src/libngs/libngsfastq.la
+fastq_fetch_SOURCES = \
+	fastq_fetch.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in
