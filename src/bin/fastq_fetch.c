@@ -55,8 +55,8 @@ main (int    argc,
       g_error_free (error);
       error = NULL;
     }
-
-  print_querries (&data);
+  else
+    print_querries (&data);
 
   if (data.output_channel)
     {

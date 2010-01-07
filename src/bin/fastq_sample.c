@@ -53,8 +53,8 @@ main (int    argc,
       g_error_free (error);
       error = NULL;
     }
-
-  print_samples (&data);
+  else
+    print_samples (&data);
 
   if (data.output_channel)
     {
@@ -122,7 +122,7 @@ parse_args (CallbackData   *data,
       data->output_channel = g_io_channel_new_file (data->output_path, "w", &error);
       if (error)
         {
-          g_printerr ("[ERROR] Opening quality output file failed: %s\n", error->message);
+          g_printerr ("[ERROR] Opening output file failed: %s\n", error->message);
           exit (1);
         }
     }
