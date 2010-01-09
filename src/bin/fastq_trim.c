@@ -143,6 +143,8 @@ iter_func (FastqSeq     *fastq,
   buffer = g_string_append (buffer, fastq->name);
   buffer = g_string_append_c (buffer, '\n');
 
+  /* TODO rewrite that without changing the sequencing in place, e.g. using
+   * g_string_append_len */
   fastq->seq[fastq->size - data->end] = '\0';
   buffer = g_string_append (buffer, fastq->seq + data->start);
   buffer = g_string_append_c (buffer, '\n');

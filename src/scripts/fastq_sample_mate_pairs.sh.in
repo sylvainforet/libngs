@@ -4,7 +4,7 @@ BIN_NAME=$(basename $0)
 
 print_usage_and_exit()
 {
-    echo "Usage: $BIN_NAME N PAIR1_FILE PAIR2_FILE"
+    echo "Usage: $BIN_NAME N PAIR1_FILE PAIR2_FILE [PREFIX]"
     exit 1
 }
 
@@ -30,11 +30,15 @@ BASE_2=$(basename $3)
 BASE_1="${BASE_1/.gz/}"
 BASE_2="${BASE_2/.gz/}"
 
-OUTPUT_FILE_1="${BASE_1}_samples_${1}.fastq"
-OUTPUT_FILE_2="${BASE_2}_samples_${1}.fastq"
+OUTPUT_FILE_1="${4}${BASE_1}_samples_${1}.fastq"
+OUTPUT_FILE_2="${4}${BASE_2}_samples_${1}.fastq"
 
+echo "$(date) Sampling forward reads"
 do_cat $2 | fastq_sample -n $1 -o $OUTPUT_FILE_1 -
+echo "$(date) Computing reverse names"
 TMP_NAMES=$(tempfile)
 grep "^@" $OUTPUT_FILE_1 | sed 's/^@//g ; s/1$/2/g' > $TMP_NAMES
+echo "$(date) Sampling reverse reads"
 do_cat $3 | fastq_fetch -i $TMP_NAMES -o $OUTPUT_FILE_2 -
 rm -f $TMP_NAMES
+echo "$(date) All done"
