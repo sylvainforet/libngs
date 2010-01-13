@@ -50,6 +50,13 @@ void iter_fasta (char         *path,
 GHashTable* load_fasta_dict (char *path);
 
 /**
+ * Formats a sequence as fasta into a buffer
+ */
+
+char* fasta_write_to_buffer (FastaSeq     *seq,
+                             unsigned int line_size);
+
+/**
  * Get the option group for the fasta parsing system
  */
 

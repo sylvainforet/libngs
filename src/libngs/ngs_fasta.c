@@ -109,5 +109,36 @@ get_fasta_option_group (void)
   return option_group;
 }
 
+char*
+fasta_write_to_buffer (FastaSeq     *seq,
+                       unsigned int line_size)
+{
+  GString      *buffer;
+  unsigned long size;
+  unsigned long i;
+
+  size = 3                     + /* for the '>', the first '\n' and the last '\0' */
+         strlen (seq->name)    + /* the name */
+         seq->size             + /* the sequence size */
+         (seq->size + line_size - 1) / line_size; /* the '\n's */
+
+  buffer = g_string_sized_new (size);
+  buffer = g_string_append_c (buffer, '>');
+  buffer = g_string_append (buffer, seq->name);
+  i      = 0;
+  do
+    {
+      buffer = g_string_append_c (buffer, '\n');
+      buffer = g_string_append (buffer, seq->name);
+      buffer = g_string_append_len (buffer, seq->seq + i, line_size);
+      i     += line_size;
+    }
+  while (i < seq->size);
+  buffer = g_string_append_c (buffer, '\n');
+
+  return g_string_free (buffer, FALSE);
+}
+
+
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */
