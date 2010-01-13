@@ -49,33 +49,6 @@ void iter_fastq (const char   *path,
                  void         *data,
                  GError      **error);
 
-/***********/
-/* FastqDB */
-/***********/
-
-typedef struct _FastqDB FastqDB;
-
-struct _FastqDB
-{
-  GHashTable   *index;
-
-  gchar        *seqs;
-  gchar        *quals;
-
-  unsigned int  seq_size;
-  unsigned int  n_seqs;
-
-  unsigned long alloc_size;
-};
-
-FastqDB* fastq_db_new  (void);
-
-void     fastq_db_load (FastqDB     *db,
-                        const char  *path,
-                        GError     **error);
-
-void     fastq_db_free (FastqDB    *db);
-
 /**
  * Get the option group for the fastq parsing system
  */

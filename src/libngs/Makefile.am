@@ -26,37 +26,29 @@ lex.FlexBsqUgly_.c: ngs_bsq_flex_ugly.l ngs_bsq_flex.h
 	@LEX@ ngs_bsq_flex_ugly.l
 
 noinst_LTLIBRARIES = \
-	libngsfasta.la \
-	libngsfastq.la \
-	libngsbsq.la
+	libngs.la
 
-libngsfasta_la_SOURCES = \
+libngs_la_SOURCES = \
+	ngs_utils.h \
+	ngs_utils.c \
 	ngs_fasta.h \
 	ngs_fasta.c \
 	ngs_fasta_flex.h \
-	ngs_utils.h \
-	ngs_utils.c \
-	lex.FlexFasta_.c
-
-libngsfastq_la_SOURCES = \
+	lex.FlexFasta_.c \
 	ngs_fastq.h \
 	ngs_fastq.c \
 	ngs_fastq_qual_tables.c \
-	ngs_utils.h \
-	ngs_utils.c \
 	ngs_fastq_flex.h \
 	lex.FlexFastq_.c \
-	lex.FlexFastqUgly_.c
-
-libngsbsq_la_SOURCES = \
+	lex.FlexFastqUgly_.c \
 	ngs_bsq.h \
 	ngs_bsq.c \
-	ngs_utils.h \
-	ngs_utils.c \
 	ngs_bsq_flex.h \
 	lex.FlexBsq_.c \
 	lex.FlexBsqUgly_.c \
-	lex.FlexBsqLine_.c
+	lex.FlexBsqLine_.c \
+	ngs_seq_db.h \
+	ngs_seq_db.c
 
 CLEANFILES = \
 	lex.FlexFasta_.c \

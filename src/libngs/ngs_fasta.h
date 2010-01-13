@@ -38,7 +38,7 @@ typedef int (*FastaIterFunc) (FastaSeq *fasta,
  * If path is '-', reads from stdin.
  */
 
-void iter_fasta (char         *path,
+void iter_fasta (const char   *path,
                  FastaIterFunc func,
                  void         *data,
                  GError      **error);

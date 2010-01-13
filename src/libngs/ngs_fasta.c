@@ -39,7 +39,7 @@ fasta_seq_free (FastaSeq *fasta)
 }
 
 void
-iter_fasta (char         *path,
+iter_fasta (const char   *path,
             FastaIterFunc func,
             void         *data,
             GError      **error)

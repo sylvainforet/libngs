@@ -24,9 +24,6 @@ static void iter_fastq_ugly   (const char   *path,
                                void         *data,
                                GError      **error);
 
-static int  iter_load_db      (FastqSeq     *fastq,
-                               FastqDB      *db);
-
 FastqSeq*
 fastq_seq_new (void)
 {
@@ -374,79 +371,6 @@ get_fastq_option_group (void)
 
   return option_group;
 }
-
-FastqDB*
-fastq_db_new (void)
-{
-  FastqDB *db;
-
-  db        = g_malloc (sizeof (*db));
-  db->index = g_hash_table_new_full (g_str_hash,
-                                     g_str_equal,
-                                     g_free,
-                                     NULL);
-  db->seqs       = NULL;
-  db->quals      = NULL;
-  db->seq_size   = 0;
-  db->n_seqs     = 0;
-  db->alloc_size = 0;
-
-  return db;
-}
-
-void
-fastq_db_load (FastqDB     *db,
-               const char  *path,
-               GError     **error)
-{
-  iter_fastq (path,
-              (FastqIterFunc)iter_load_db,
-              db,
-              error);
-}
-
-void
-fastq_db_free (FastqDB *db)
-{
-  if (db)
-    {
-      if (db->index)
-        g_hash_table_destroy (db->index);
-      if (db->seqs)
-        g_free (db->seqs);
-      if (db->quals)
-        g_free (db->quals);
-      g_free (db);
-    }
-}
-
-#define SIZE_INCREMENT (1024 * 1024)
-static int
-iter_load_db (FastqSeq *fastq,
-              FastqDB  *db)
-{
-  if (db->seq_size == 0)
-    db->seq_size = fastq->size;
-  else if (db->seq_size != fastq->size)
-    {
-      g_printerr ("[WARNING] Sequence `%s' has different size, ignoring\n",
-                  fastq->name);
-      return 1;
-    }
-  db->n_seqs++;
-  if (db->n_seqs * db->seq_size * sizeof (*db->seqs) > db->alloc_size)
-    {
-      db->alloc_size += SIZE_INCREMENT;
-      db->seqs        = g_realloc (db->seqs, db->alloc_size);
-      db->quals       = g_realloc (db->quals, db->alloc_size);
-    }
-  g_hash_table_insert (db->index,
-                       strdup (fastq->name),
-                       GUINT_TO_POINTER (db->n_seqs - 1));
-
-  return 1;
-}
-#undef SIZE_INCREMENT
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */

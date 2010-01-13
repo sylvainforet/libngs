@@ -89,7 +89,7 @@ struct _FlexFastaData
 
 %%
 
-void iter_fasta_flex (char         *path,
+void iter_fasta_flex (const char   *path,
                       FastaIterFunc func,
                       void         *func_data,
                       GError      **error)

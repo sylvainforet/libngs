@@ -24,59 +24,57 @@ bin_PROGRAMS = \
 	bsq_summary
 
 fastq2fasta_LDADD = \
-	$(top_builddir)/src/libngs/libngsfastq.la
+	$(top_builddir)/src/libngs/libngs.la
 fastq2fasta_SOURCES = \
 	fastq2fasta.c
 
 fastq_base_qual_summary_LDADD = \
-	$(top_builddir)/src/libngs/libngsfastq.la
+	$(top_builddir)/src/libngs/libngs.la
 fastq_base_qual_summary_SOURCES = \
 	fastq_base_qual_summary.c
 
 fastq_fetch_LDADD = \
-	$(top_builddir)/src/libngs/libngsfastq.la
+	$(top_builddir)/src/libngs/libngs.la
 fastq_fetch_SOURCES = \
 	fastq_fetch.c
 
 fastq_letter_qual_LDADD = \
-	$(top_builddir)/src/libngs/libngsfastq.la
+	$(top_builddir)/src/libngs/libngs.la
 fastq_letter_qual_SOURCES = \
 	fastq_letter_qual.c
 
 fastq_read_qual_summary_LDADD = \
-	$(top_builddir)/src/libngs/libngsfastq.la
+	$(top_builddir)/src/libngs/libngs.la
 fastq_read_qual_summary_SOURCES = \
 	fastq_read_qual_summary.c
 
 fastq_sample_LDADD = \
-	$(top_builddir)/src/libngs/libngsfastq.la
+	$(top_builddir)/src/libngs/libngs.la
 fastq_sample_SOURCES = \
 	fastq_sample.c
 
 fastq_trim_LDADD = \
-	$(top_builddir)/src/libngs/libngsfastq.la
+	$(top_builddir)/src/libngs/libngs.la
 fastq_trim_SOURCES = \
 	fastq_trim.c
 
 bsq2gff_LDADD = \
-	$(top_builddir)/src/libngs/libngsbsq.la
+	$(top_builddir)/src/libngs/libngs.la
 bsq2gff_SOURCES = \
 	bsq2gff.c
 
 bsq_coverage_distribution_LDADD = \
-	$(top_builddir)/src/libngs/libngsbsq.la \
-	$(top_builddir)/src/libngs/libngsfasta.la
+	$(top_builddir)/src/libngs/libngs.la
 bsq_coverage_distribution_SOURCES = \
 	bsq_coverage_distribution.c
 
 bsq_empty_regions_content_LDADD = \
-	$(top_builddir)/src/libngs/libngsbsq.la \
-	$(top_builddir)/src/libngs/libngsfasta.la
+	$(top_builddir)/src/libngs/libngs.la
 bsq_empty_regions_content_SOURCES = \
 	bsq_empty_regions_content.c
 
 bsq_summary_LDADD = \
-	$(top_builddir)/src/libngs/libngsbsq.la
+	$(top_builddir)/src/libngs/libngs.la
 bsq_summary_SOURCES = \
 	bsq_summary.c
 
