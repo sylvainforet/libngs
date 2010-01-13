@@ -75,7 +75,7 @@ struct _FlexFastqData
 
 %%
 
-void iter_fastq_flex_ugly (char         *path,
+void iter_fastq_flex_ugly (const char   *path,
                            FastqIterFunc func,
                            void         *func_data,
                            GError      **error)

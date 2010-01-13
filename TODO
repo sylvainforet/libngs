@@ -11,3 +11,5 @@
 
 * Factorize the code that writes a FastqSeq to a channel.  Or at least the code
   that turns a FastqSeq into a string.
+
+* Make sure that the iter functions take a const char* as argument.
