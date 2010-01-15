@@ -37,13 +37,11 @@ struct _SeqDB
   gchar        *seqs;
   gchar        *quals;
 
-  unsigned int  n_seqs;
-
   unsigned long alloc_size;
   unsigned long alloc_inc;
+  unsigned long total_size;
 
-  /*< private >*/
-  unsigned long current_offset;
+  unsigned int  n_seqs;
 };
 
 SeqDB* seq_db_new        (void);

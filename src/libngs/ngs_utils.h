@@ -7,6 +7,14 @@
 
 #include <glib.h>
 
+
+char* rev_comp_in_place (char         *seq,
+                         unsigned long size);
+
+/* Just reverses, not complement, used for e.g. for qualities */
+char* rev_in_place      (char         *seq,
+                         unsigned long size);
+
 typedef enum
 {
   NGS_UNKNOWN_ERROR,

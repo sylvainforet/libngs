@@ -18,20 +18,28 @@ static void parse_args (TestFastaData    *data,
                         int               *argc,
                         char            ***argv);
 
-static void iter_fasta_dict_func (char *key,
-                                  char *value,
-                                  void *data);
+static int  iter_fasta_func (FastaSeq *seq,
+                             void     *data);
 
 int
 main (int    argc,
       char **argv)
 {
   TestFastaData  data;
-  GHashTable    *dict;
+  GError        *error = NULL;
 
   parse_args (&data, &argc, &argv);
-  dict = load_fasta_dict (data.input_path);
-  g_hash_table_foreach (dict, (GHFunc)iter_fasta_dict_func, NULL);
+  iter_fasta (data.input_path,
+              iter_fasta_func,
+              NULL,
+              &error);
+  if (error)
+    {
+      g_printerr ("[ERROR] Failed to load input file `%s': %s\n",
+                  data.input_path,
+                  error->message);
+      exit (1);
+    }
 
   return 0;
 }
@@ -48,6 +56,8 @@ parse_args (TestFastaData    *data,
     };
   GError         *error = NULL;
   GOptionContext *context;
+
+  data->width = 50;
 
   context = g_option_context_new ("FILE - Reads a fasta file and spits it back out");
   g_option_context_add_group (context, get_fasta_option_group ());
@@ -67,14 +77,12 @@ parse_args (TestFastaData    *data,
   data->input_path = (*argv)[1];
 }
 
-static void
-iter_fasta_dict_func (char *key,
-                      char *value,
-                      void *data)
+static int
+iter_fasta_func (FastaSeq *seq,
+                 void     *data)
 {
-  g_print (">%s\n%s\n",
-           key,
-           value);
+  g_print ("%s\n", fasta_write_to_buffer (seq, 50));
+  return 1;
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:

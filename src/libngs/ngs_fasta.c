@@ -129,7 +129,6 @@ fasta_write_to_buffer (FastaSeq     *seq,
   do
     {
       buffer = g_string_append_c (buffer, '\n');
-      buffer = g_string_append (buffer, seq->name);
       buffer = g_string_append_len (buffer, seq->seq + i, line_size);
       i     += line_size;
     }

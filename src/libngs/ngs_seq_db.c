@@ -43,16 +43,17 @@ seq_db_new (void)
 {
   SeqDB *db;
 
-  db             = g_slice_new0 (SeqDB);
+  db             = g_slice_new (SeqDB);
   db->index      = g_hash_table_new_full (g_str_hash,
                                           g_str_equal,
                                           NULL,
                                           (GDestroyNotify)seq_db_element_free);
   db->seqs       = NULL;
   db->quals      = NULL;
-  db->n_seqs     = 0;
   db->alloc_size = 0;
+  db->total_size = 0;
   db->alloc_inc  = DEFAULT_ALLOC_INC;
+  db->n_seqs     = 0;
 
   return db;
 }
@@ -102,19 +103,25 @@ iter_load_db_fastq (FastqSeq *fastq,
   SeqDBElement *elem;
 
   db->n_seqs++;
-  if (db->current_offset >= db->alloc_size)
+  if (db->total_size >= db->alloc_size)
     {
-      db->alloc_size += db->alloc_inc;
-      db->seqs        = g_realloc (db->seqs, db->alloc_size);
-      db->quals       = g_realloc (db->quals, db->alloc_size);
+      db->alloc_size  = ((db->alloc_size + fastq->size + db->alloc_inc - 1) / db->alloc_inc) * db->alloc_inc;
+      db->seqs        = g_realloc (db->seqs,
+                                   db->alloc_size * sizeof (*db->seqs));
+      db->quals       = g_realloc (db->quals,
+                                   db->alloc_size * sizeof (*db->quals));
     }
-  elem         = seq_db_element_new ();
-  elem->name   = strdup (fastq->name);
-  elem->offset = db->current_offset;
-  elem->size   = fastq->size;
-  db->seqs     = memcpy (db->seqs, fastq->seq, fastq->size * sizeof (*fastq->seq));
-  db->quals    = memcpy (db->quals, fastq->qual, fastq->size * sizeof (*fastq->qual));
-  db->current_offset += elem->size;
+  elem            = seq_db_element_new ();
+  elem->name      = strdup (fastq->name);
+  elem->offset    = db->total_size;
+  elem->size      = fastq->size;
+  memcpy (db->seqs + db->total_size,
+          fastq->seq,
+          fastq->size * sizeof (*fastq->seq));
+  memcpy (db->quals + db->total_size,
+          fastq->qual,
+          fastq->size * sizeof (*fastq->seq));
+  db->total_size += elem->size;
   g_hash_table_insert (db->index,
                        elem->name,
                        elem);
@@ -129,18 +136,20 @@ iter_load_db_fasta (FastaSeq *fasta,
   SeqDBElement *elem;
 
   db->n_seqs++;
-  if (db->current_offset >= db->alloc_size)
+  if (db->total_size + fasta->size >= db->alloc_size)
     {
-      db->alloc_size += db->alloc_inc;
-      db->seqs        = g_realloc (db->seqs, db->alloc_size);
-      db->quals       = g_realloc (db->quals, db->alloc_size);
+      db->alloc_size  = ((db->alloc_size + fasta->size + db->alloc_inc - 1) / db->alloc_inc) * db->alloc_inc;
+      db->seqs        = g_realloc (db->seqs,
+                                   db->alloc_size * sizeof (*db->seqs));
     }
-  elem         = seq_db_element_new ();
-  elem->name   = strdup (fasta->name);
-  elem->offset = db->current_offset;
-  elem->size   = fasta->size;
-  db->seqs     = memcpy (db->seqs, fasta->seq, fasta->size * sizeof (*fasta->seq));
-  db->current_offset += elem->size;
+  elem            = seq_db_element_new ();
+  elem->name      = strdup (fasta->name);
+  elem->offset    = db->total_size;
+  elem->size      = fasta->size;
+  memcpy (db->seqs + db->total_size,
+          fasta->seq,
+          fasta->size * sizeof (*fasta->seq));
+  db->total_size += elem->size;
   g_hash_table_insert (db->index,
                        elem->name,
                        elem);

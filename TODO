@@ -13,3 +13,5 @@
   that turns a FastqSeq into a string.
 
 * Make sure that the iter functions take a const char* as argument.
+
+* Make a single option group for the whole libngs

@@ -4,6 +4,48 @@
 
 #include <ngs_utils.h>
 
+char rev_table[128] =
+{
+  ['A'] = 'T',
+  ['T'] = 'A',
+  ['G'] = 'C',
+  ['C'] = 'G',
+  ['N'] = 'N'
+};
+
+
+char*
+rev_comp_in_place (char         *seq,
+                   unsigned long size)
+{
+  const unsigned long middle = (size + 1) / 2;
+  unsigned long       i;
+
+  for (i = 0; i < middle; i++)
+    {
+      const char c      = seq[i];
+      seq[i]            = rev_table[(int)seq[size - i - 1]];
+      seq[size - i - 1] = rev_table[(int)c];
+    }
+  return seq;
+}
+
+char*
+rev_in_place (char         *seq,
+              unsigned long size)
+{
+  const unsigned long middle = (size + 1) / 2;
+  unsigned long       i;
+
+  for (i = 0; i < middle; i++)
+    {
+      const char c      = seq[i];
+      seq[i]            = seq[size - i - 1];
+      seq[size - i - 1] = c;
+    }
+  return seq;
+}
+
 GQuark
 ngs_error_quark (void)
 {

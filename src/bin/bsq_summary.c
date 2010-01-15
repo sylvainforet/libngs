@@ -101,38 +101,6 @@ static int
 iter_func (BsqRecord    *rec,
            CallbackData *data)
 {
-#if 0
-  if (rec->flag == BSQ_MAP_UM ||
-      rec->flag == BSQ_MAP_MA ||
-      rec->flag == BSQ_MAP_OF)
-    g_print ("%s\t"  /* name */
-             "%s\t"  /* seq */
-             "%s\t"  /* flag */
-             "%s\t"  /* ref */
-             "%ld\t" /* loc */
-             "%s\t"  /* strand */
-             "%d\t"  /* mismatches */
-             "%s\t"  /* mismatch_info */
-             "%s\n", /* mC_loc */
-             rec->name,
-             rec->seq,
-             map_flag_names[rec->flag],
-             rec->ref,
-             rec->loc,
-             strand_names[rec->strand],
-             rec->n_mis,
-             rec->mis_info,
-             rec->mC_loc);
-  else
-    g_print ("%s\t"  /* name */
-             "%s\t"  /* seq */
-             "%s\n", /* flag */
-             rec->name,
-             rec->seq,
-             map_flag_names[rec->flag]);
-
-#else
-
   int mate_pair_idx = 0;
   int strand_idx    = 0;
 
@@ -151,7 +119,6 @@ iter_func (BsqRecord    *rec,
     strand_idx = rec->strand;
 
   data->counts[mate_pair_idx][strand_idx][rec->flag]++;
-#endif
 
   return 1;
 }
