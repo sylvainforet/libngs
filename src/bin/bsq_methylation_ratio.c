@@ -133,7 +133,7 @@ parse_args (CallbackData      *data,
 
   if (!data->ref_path)
     {
-      g_printerr ("[ERROR] You must specify a reference genome with -s\n");
+      g_printerr ("[ERROR] You must specify a reference genome with -r\n");
       exit (1);
     }
   if (!data->fastq_paths || !*data->fastq_paths)
