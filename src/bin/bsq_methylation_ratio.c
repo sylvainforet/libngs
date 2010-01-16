@@ -148,7 +148,7 @@ parse_args (CallbackData      *data,
     }
   if (data->min_qual >= 35)
     g_printerr ("[WARNING] Minimum quality is set to %d, "
-                "it is likely that no base will be considered\n",
+                "it is likely that few or no bases will be considered\n",
                 data->min_qual);
   if (data->print_all)
     data->print_letter = 1;
@@ -174,7 +174,7 @@ load_data (CallbackData *data)
       exit (1);
     }
   if (data->verbose)
-    g_print (">>> Loading Bsq\n");
+    g_print (">>> Loading Fastq\n");
   for (tmp = data->fastq_paths; *tmp; tmp++)
     {
       seq_db_load_fastq (data->reads, *tmp, &error);
@@ -272,7 +272,7 @@ iter_bsq_func (BsqRecord    *rec,
         {
           if (ref[i] == 'C')
             {
-              if (qual[i] >= data->min_qual)
+              if (qual[i] >= data->min_qual + FASTQ_QUAL_0)
                 {
                   unsigned int meth_idx;
 
