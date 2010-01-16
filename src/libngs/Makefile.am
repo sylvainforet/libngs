@@ -1,5 +1,11 @@
 EXTRA_DIST = \
-	make_qual_table.py
+	make_qual_table.py \
+	ngs_bsq_flex.l \
+	ngs_bsq_flex_line.l \
+	ngs_bsq_flex_ugly.l \
+	ngs_fasta_flex.l \
+	ngs_fastq_flex.l \
+	ngs_fastq_flex_ugly.l
 
 AM_CPPFLAGS = \
 	@GLIB_CFLAGS@

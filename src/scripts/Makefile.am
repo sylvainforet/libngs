@@ -2,7 +2,8 @@ bin_SCRIPTS = \
 	fastq_sample_mate_pairs.sh
 
 EXTRA_DIST = \
-	fastq_sample_mate_pairs.sh.in
+	fastq_sample_mate_pairs.sh.in \
+	plot_coverage.R
 
 fastq_sample_mate_pairs.sh: fastq_sample_mate_pairs.sh.in
 	sed \
