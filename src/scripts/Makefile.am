@@ -1,8 +1,12 @@
 bin_SCRIPTS = \
-	fastq_sample_mate_pairs.sh
+	extract_CG_contig.py \
+	fastq_sample_mate_pairs.sh \
+	interleave.py
 
 EXTRA_DIST = \
+	extract_CG_contig.py \
 	fastq_sample_mate_pairs.sh.in \
+	interleave.py \
 	plot_coverage.R
 
 fastq_sample_mate_pairs.sh: fastq_sample_mate_pairs.sh.in
