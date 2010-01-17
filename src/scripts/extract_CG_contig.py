@@ -5,7 +5,11 @@ import os.path
 
 
 def parseCG(path, name):
-    handle = open(path)
+    handle = None
+    if path == '-':
+        handle = sys.stdin
+    else:
+        handle = open(path)
     inContig = False
     for line in handle:
         if line[0] == '>':
@@ -18,7 +22,8 @@ def parseCG(path, name):
         else:
             if inContig:
                 print line.strip()
-    handle.close()
+    if path != '-':
+        handle.close()
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

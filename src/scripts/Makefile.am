@@ -20,7 +20,7 @@ r_scripts_DATA = \
 	plot_coverage.R
 
 CLEANFILES = \
-	$(bin_SCRIPTS)
+	fastq_sample_mate_pairs.sh
 
 MAINTAINERCLEANFILES = \
 	Makefile.in
