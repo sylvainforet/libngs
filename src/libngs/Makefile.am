@@ -53,6 +53,8 @@ libngs_la_SOURCES = \
 	lex.FlexBsq_.c \
 	lex.FlexBsqUgly_.c \
 	lex.FlexBsqLine_.c \
+	ngs_methylation.h \
+	ngs_methylation.c \
 	ngs_seq_db.h \
 	ngs_seq_db.c
 
