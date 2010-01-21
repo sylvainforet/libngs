@@ -50,26 +50,26 @@ ref_meth_counts_destroy (RefMethCounts *counts)
 void
 ref_meth_counts_add_path (RefMethCounts *counts,
                           SeqDB         *ref,
-                          const char    *path)
+                          const char    *path,
+                          GError       **error)
 {
   GIOChannel    *channel;
-  SeqDBElement  *elem  = NULL;
-  GError        *error = NULL;
-  char          *line  = NULL;
+  SeqDBElement  *elem      = NULL;
+  GError        *tmp_error = NULL;
+  char          *line      = NULL;
   gsize          length;
   gsize          endl;
 
   /* Open */
-  channel = g_io_channel_new_file (path, "r", &error);
-  if (error)
+  channel = g_io_channel_new_file (path, "r", &tmp_error);
+  if (tmp_error)
     {
-      g_printerr ("[ERROR] Opening previous meth count file `%s' failed: %s\n",
-                  path, error->message);
-      exit (1);
+      g_propagate_error (error, tmp_error);
+      return;
     }
 
   /* Parse */
-  while (G_IO_STATUS_NORMAL == g_io_channel_read_line (channel, &line, &length, &endl, &error))
+  while (G_IO_STATUS_NORMAL == g_io_channel_read_line (channel, &line, &length, &endl, &tmp_error))
     {
       line[endl] = '\0';
       if (line[0] == '>')
@@ -107,36 +107,42 @@ ref_meth_counts_add_path (RefMethCounts *counts,
       g_free (line);
       line = NULL;
     }
-  if (error)
-    {
-      g_printerr ("[ERROR] Reading meth count file `%s' failed: %s\n",
-                  path,
-                  error->message);
-      exit (1);
-    }
   if (line)
     g_free (line);
+  if (tmp_error)
+    {
+      g_propagate_error (error, tmp_error);
+      tmp_error = NULL;
+    }
 
   /* Close */
-  g_io_channel_shutdown (channel, TRUE, &error);
-  if (error)
+  g_io_channel_shutdown (channel, TRUE, &tmp_error);
+  if (tmp_error)
     {
-      g_printerr ("[ERROR] Closing meth count file `%s' failed: %s\n",
+      g_printerr ("[WARNING] Closing meth count file `%s' failed: %s\n",
                   path,
-                  error->message);
-      g_error_free (error);
+                  tmp_error->message);
+      g_error_free (tmp_error);
     }
   g_io_channel_unref (channel);
 }
 
 RefMethCounts*
 ref_meth_counts_load (SeqDB        *ref,
-                      const char   *path)
+                      const char   *path,
+                      GError      **error)
 {
   RefMethCounts *counts;
+  GError        *tmp_error = NULL;
 
   counts = ref_meth_counts_create (ref);
-  ref_meth_counts_add_path (counts, ref, path);
+  ref_meth_counts_add_path (counts, ref, path, &tmp_error);
+  if (tmp_error)
+    {
+      ref_meth_counts_destroy (counts);
+      counts = NULL;
+      g_propagate_error (error, tmp_error);
+    }
 
   return counts;
 }
@@ -147,12 +153,13 @@ ref_meth_counts_write (RefMethCounts *counts,
                        SeqDB         *ref,
                        const char    *path,
                        int            print_letter,
-                       int            print_all)
+                       int            print_all,
+                       GError       **error)
 {
   GHashTableIter iter;
   GIOChannel    *channel;
   SeqDBElement  *elem;
-  GError        *error      = NULL;
+  GError        *tmp_error  = NULL;
   int            use_stdout = 1;
 
   /* Open */
@@ -161,13 +168,11 @@ ref_meth_counts_write (RefMethCounts *counts,
   else
     {
       use_stdout = 0;
-      channel = g_io_channel_new_file (path, "w", &error);
-      if (error)
+      channel = g_io_channel_new_file (path, "w", &tmp_error);
+      if (tmp_error)
         {
-          g_printerr ("[ERROR] Opening output file `%s' failed: %s\n",
-                      path,
-                      error->message);
-          exit (1);
+          g_propagate_error (error, tmp_error);
+          return;
         }
     }
 
@@ -208,29 +213,27 @@ ref_meth_counts_write (RefMethCounts *counts,
                                 buffer->str,
                                 buffer->len,
                                 NULL,
-                                &error);
-      if (error)
-        {
-          g_printerr ("[ERROR] Writing to output file `%s' failed: %s\n",
-                      path,
-                      error->message);
-          g_error_free (error);
-          error = NULL;
-        }
-
+                                &tmp_error);
       g_string_free (buffer, TRUE);
+
+      if (tmp_error)
+        {
+          g_propagate_error (error, tmp_error);
+          tmp_error = NULL;
+          break;
+        }
     }
 
   /* Close */
   if (!use_stdout)
     {
-      g_io_channel_shutdown (channel, TRUE, &error);
-      if (error)
+      g_io_channel_shutdown (channel, TRUE, &tmp_error);
+      if (tmp_error)
         {
           g_printerr ("[ERROR] Closing output file `%s' failed: %s\n",
                       path,
-                      error->message);
-          g_error_free (error);
+                      tmp_error->message);
+          g_error_free (tmp_error);
         }
     }
   g_io_channel_unref (channel);

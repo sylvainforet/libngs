@@ -53,15 +53,26 @@ main (int    argc,
       char **argv)
 {
   CallbackData  data;
+  GError       *error = NULL;
 
   parse_args (&data, &argc, &argv);
   if (data.verbose)
     g_print (">>> Loading Data\n");
   load_data (&data);
   if (data.add_path)
-    ref_meth_counts_add_path (data.counts,
-                              data.ref,
-                              data.add_path);
+    {
+      ref_meth_counts_add_path (data.counts,
+                                data.ref,
+                                data.add_path,
+                                &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] failed to load meth file `%s': %s\n",
+                      data.add_path,
+                      error->message);
+          exit (1);
+        }
+    }
   if (data.verbose)
     g_print (">>> Mapping Data\n");
   map_data (&data);
@@ -71,7 +82,15 @@ main (int    argc,
                          data.ref,
                          data.output_path,
                          data.print_letter,
-                         data.print_all);
+                         data.print_all,
+                         &error);
+  if (error)
+    {
+      g_printerr ("[ERROR] failed to write meth file `%s': %s\n",
+                  data.output_path,
+                  error->message);
+      exit (1);
+    }
   cleanup_data (&data);
 
   return 0;

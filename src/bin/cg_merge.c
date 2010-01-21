@@ -37,20 +37,39 @@ main (int    argc,
       char **argv)
 {
   CallbackData  data;
+  GError       *error = NULL;
   int           i;
 
   parse_args (&data, &argc, &argv);
 
   load_ref (&data);
   for (i = 1; i < argc; i++)
-    ref_meth_counts_add_path (data.counts,
-                              data.ref,
-                              argv[i]);
+    {
+      ref_meth_counts_add_path (data.counts,
+                                data.ref,
+                                argv[i],
+                                &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] failed to load meth file `%s': %s\n",
+                      argv[i],
+                      error->message);
+          exit (1);
+        }
+    }
   ref_meth_counts_write (data.counts,
                          data.ref,
                          data.output_path,
                          data.print_letter,
-                         data.print_all);
+                         data.print_all,
+                         &error);
+  if (error)
+    {
+      g_printerr ("[ERROR] failed to write meth file `%s': %s\n",
+                  data.output_path,
+                  error->message);
+      exit (1);
+    }
   cleanup_data (&data);
 
   return 0;
@@ -67,7 +86,7 @@ parse_args (CallbackData      *data,
       {"out",       'o', 0, G_OPTION_ARG_FILENAME, &data->output_path,  "Output file", NULL},
       {"verbose",   'v', 0, G_OPTION_ARG_NONE,     &data->verbose,      "Verbose output", NULL},
       {"letter",    'l', 0, G_OPTION_ARG_NONE,     &data->print_letter, "Prepend a column with the letter", NULL},
-      {"all",       'w', 0, G_OPTION_ARG_NONE,     &data->print_all,    "Prints all positions (implies l)", NULL},
+      {"all",       'w', 0, G_OPTION_ARG_NONE,     &data->print_all,    "Prints all positions (implies -l)", NULL},
       {NULL}
     };
   GError         *error = NULL;
@@ -112,13 +131,15 @@ load_ref (CallbackData *data)
 
   if (data->verbose)
     g_print (">>> Loading reference %s\n", data->ref_path);
-  seq_db_load_fasta (data->ref, data->ref_path, &error);
+  seq_db_load_fasta (data->ref,
+                     data->ref_path,
+                     &error);
   if (error)
     {
       g_printerr ("[ERROR] Loading reference failed: %s\n", error->message);
       exit (1);
     }
-  data->counts = ref_meth_counts_load (data->ref, data->ref_path);
+  data->counts = ref_meth_counts_create (data->ref);
 }
 
 static void

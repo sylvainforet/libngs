@@ -32,17 +32,20 @@ struct _RefMethCounts
 RefMethCounts* ref_meth_counts_create   (SeqDB         *ref);
 
 RefMethCounts* ref_meth_counts_load     (SeqDB         *ref,
-                                         const char    *path);
+                                         const char    *path,
+                                         GError       **error);
 
 void           ref_meth_counts_add_path (RefMethCounts *counts,
                                          SeqDB         *ref,
-                                         const char    *path);
+                                         const char    *path,
+                                         GError       **error);
 
 void           ref_meth_counts_write    (RefMethCounts *counts,
                                          SeqDB         *ref,
                                          const char    *path,
                                          int            print_letter,
-                                         int            print_all);
+                                         int            print_all,
+                                         GError       **error);
 
 void           ref_meth_counts_destroy  (RefMethCounts *counts);
 
