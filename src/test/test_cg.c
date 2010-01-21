@@ -49,7 +49,7 @@ main (int    argc,
   g_print ("Loaded meth file in %.3f sec\n", g_timer_elapsed (timer, NULL));
 
   g_timer_start (timer);
-  ref_meth_counts_write (counts, ref, argv[3], 1, 1, &error);
+  ref_meth_counts_write (counts, ref, argv[3], 0, 0, &error);
   g_timer_stop (timer);
 
   if (error)

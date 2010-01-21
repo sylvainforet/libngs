@@ -53,6 +53,7 @@ ref_meth_counts_add_path (RefMethCounts *counts,
                           const char    *path,
                           GError       **error)
 {
+#if 0
   GIOChannel    *channel;
   SeqDBElement  *elem      = NULL;
   GError        *tmp_error = NULL;
@@ -114,6 +115,91 @@ ref_meth_counts_add_path (RefMethCounts *counts,
       g_propagate_error (error, tmp_error);
       tmp_error = NULL;
     }
+
+  /* Close */
+  g_io_channel_shutdown (channel, TRUE, &tmp_error);
+  if (tmp_error)
+    {
+      g_printerr ("[WARNING] Closing meth count file `%s' failed: %s\n",
+                  path,
+                  tmp_error->message);
+      g_error_free (tmp_error);
+    }
+  g_io_channel_unref (channel);
+#endif /* 0 */
+  GIOChannel    *channel;
+  SeqDBElement  *elem      = NULL;
+  GError        *tmp_error = NULL;
+  char          *buffer    = NULL;
+  gsize          length    = 0;
+  gsize          j         = 0;
+  gsize          i;
+
+  /* Open */
+  channel = g_io_channel_new_file (path, "r", &tmp_error);
+  if (tmp_error)
+    {
+      g_propagate_error (error, tmp_error);
+      return;
+    }
+
+  g_io_channel_read_to_end (channel, &buffer, &length, &tmp_error);
+  if (tmp_error)
+    {
+      g_propagate_error (error, tmp_error);
+      if (buffer)
+        g_free (buffer);
+      return;
+    }
+
+  for (i = 0; i < length; )
+    {
+      if (buffer[i] == '>')
+        {
+          for (j = i + 1; j < length && buffer[j] != '\n'; j++);
+          buffer[j] = '\0';
+          elem = g_hash_table_lookup (ref->index, buffer + i + 1);
+          if (!elem)
+            g_printerr ("[WARNING] Reference `%s' not found\n", buffer + i + 1);
+        }
+      else if (elem)
+        {
+          unsigned long offset;
+          gsize         starts[3] = {0, 0, 0};
+          int           field_idx = 0;
+
+          for (j = i; j < length && buffer[j] != '\n'; j++)
+            {
+              if (field_idx > 4)
+                break;
+              if (buffer[i] == '\t')
+                {
+                  buffer[i] = '\0';
+                  ++field_idx;
+                  if (field_idx < 4)
+                    starts[field_idx] = j + 1;
+                }
+            }
+          buffer[j] = '\0';
+          if (field_idx == 1)
+            {
+              offset = g_ascii_strtoll (buffer + i, NULL, 10);
+              counts->meth_index[elem->offset + offset]->n_meth   += g_ascii_strtoll (buffer + i + starts[0], NULL, 10);
+              counts->meth_index[elem->offset + offset]->n_unmeth += g_ascii_strtoll (buffer + i + starts[1], NULL, 10);
+            }
+          else if (field_idx == 2)
+            {
+              offset = g_ascii_strtoll (buffer + i + starts[0], NULL, 10);
+              counts->meth_index[elem->offset + offset]->n_meth   += g_ascii_strtoll (buffer + i + starts[1], NULL, 10);
+              counts->meth_index[elem->offset + offset]->n_unmeth += g_ascii_strtoll (buffer + i + starts[2], NULL, 10);
+            }
+          else if (field_idx != 0)
+            g_printerr ("[WARNING] Could not parse meth count line\n");
+        }
+      i = j + 1;
+    }
+  if (buffer)
+    g_free (buffer);
 
   /* Close */
   g_io_channel_shutdown (channel, TRUE, &tmp_error);
