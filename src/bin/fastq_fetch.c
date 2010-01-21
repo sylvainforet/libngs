@@ -13,14 +13,11 @@ struct _CallbackData
 {
   char       *input_path;
   char       *output_path;
-  GIOChannel *output_channel;
 
   gchar      *querries_path;
   gchar      *querries_string;
   gchar     **querries_array;
   GHashTable *querries_hash;
-
-  int         use_stdout: 1;
 };
 
 static int  iter_func      (FastqSeq       *fastq,
@@ -58,20 +55,6 @@ main (int    argc,
   else
     print_querries (&data);
 
-  if (data.output_channel)
-    {
-      if (!data.use_stdout)
-        {
-          g_io_channel_shutdown (data.output_channel, TRUE, &error);
-          if (error)
-            {
-              g_printerr ("[ERROR] Closing output file failed: %s\n", error->message);
-              g_error_free (error);
-              error = NULL;
-            }
-        }
-      g_io_channel_unref (data.output_channel);
-    }
   free_querries (&data);
 
   return 0;
@@ -93,8 +76,6 @@ parse_args (CallbackData   *data,
   GOptionContext *context;
 
   data->output_path     = "-";
-  data->output_channel  = NULL;
-  data->use_stdout      = 1;
 
   data->querries_path   = NULL;
   data->querries_string = NULL;
@@ -116,20 +97,8 @@ parse_args (CallbackData   *data,
       g_printerr ("[ERROR] No input file provided\n");
       exit (1);
     }
-  data->input_path = (*argv)[1];
 
-  if (data->output_path[0] == '-' && data->output_path[1] == '\0')
-    data->output_channel = g_io_channel_unix_new (STDOUT_FILENO);
-  else
-    {
-      data->use_stdout     = 0;
-      data->output_channel = g_io_channel_new_file (data->output_path, "w", &error);
-      if (error)
-        {
-          g_printerr ("[ERROR] Opening quality output file failed: %s\n", error->message);
-          exit (1);
-        }
-    }
+  data->input_path = (*argv)[1];
   load_queries (data);
 }
 
@@ -206,7 +175,23 @@ iter_func (FastqSeq     *fastq,
 static void
 print_querries (CallbackData *data)
 {
-  char **tmp;
+  GIOChannel *channel;
+  char      **tmp;
+  GError     *error      = NULL;
+  int         use_stdout = 1;
+
+  if (data->output_path[0] == '-' && data->output_path[1] == '\0')
+    channel = g_io_channel_unix_new (STDOUT_FILENO);
+  else
+    {
+      use_stdout = 0;
+      channel    = g_io_channel_new_file (data->output_path, "w", &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] Opening quality output file failed: %s\n", error->message);
+          exit (1);
+        }
+    }
 
   for (tmp = data->querries_array; *tmp; tmp++)
     {
@@ -215,8 +200,7 @@ print_querries (CallbackData *data)
       seq = g_hash_table_lookup (data->querries_hash, *tmp);
       if (seq)
         {
-          GError   *error = NULL;
-          GString  *buffer;
+          GString *buffer;
 
           buffer = g_string_sized_new (512);
           buffer = g_string_append_c (buffer, '@');
@@ -233,7 +217,7 @@ print_querries (CallbackData *data)
           buffer = g_string_append (buffer, seq->qual);
           buffer = g_string_append_c (buffer, '\n');
 
-          g_io_channel_write_chars (data->output_channel,
+          g_io_channel_write_chars (channel,
                                     buffer->str,
                                     -1,
                                     NULL,
@@ -241,13 +225,26 @@ print_querries (CallbackData *data)
           g_string_free (buffer, TRUE);
           if (error)
             {
-              g_printerr ("[ERROR] Writing sampled sequence failed: %s\n",
+              g_printerr ("[ERROR] Writing sequence failed: %s\n",
                           error->message);
               g_error_free (error);
-              return;
+              error = NULL;
+              break;
             }
         }
     }
+
+  if (!use_stdout)
+    {
+      g_io_channel_shutdown (channel, TRUE, &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] Closing output file failed: %s\n", error->message);
+          g_error_free (error);
+          error = NULL;
+        }
+    }
+  g_io_channel_unref (channel);
 }
 
 static void

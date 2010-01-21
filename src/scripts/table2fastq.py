@@ -16,7 +16,7 @@ def parse(path):
         fields = line.split()
         if fields[10] == '0':
             continue
-        name = '%s%s::%s:%s:%s:%s#%s/%s' % tuple(fields[:8])
+        name = '%s%s:%s:%s:%s:%s#%s/%s' % tuple(fields[:8])
         print '@%s' % name
         print fields[8].replace('.', 'N')
         print '+%s' % name
