@@ -15,3 +15,5 @@
 * Make sure that the iter functions take a const char* as argument.
 
 * Make a single option group for the whole libngs
+
+* THe strdup("-") used for most ouput_path is evil. Memory leak. Change it!
