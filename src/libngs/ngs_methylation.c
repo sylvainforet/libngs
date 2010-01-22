@@ -170,28 +170,26 @@ ref_meth_counts_add_path (RefMethCounts *counts,
 
           for (j = i; j < length && buffer[j] != '\n'; j++)
             {
-              if (field_idx > 4)
-                break;
-              if (buffer[i] == '\t')
+              if (buffer[j] == '\t')
                 {
-                  buffer[i] = '\0';
-                  ++field_idx;
-                  if (field_idx < 4)
+                  buffer[j] = '\0';
+                  if (field_idx < 3)
                     starts[field_idx] = j + 1;
+                  ++field_idx;
                 }
             }
           buffer[j] = '\0';
-          if (field_idx == 1)
+          if (field_idx == 2)
             {
               offset = g_ascii_strtoll (buffer + i, NULL, 10);
-              counts->meth_index[elem->offset + offset]->n_meth   += g_ascii_strtoll (buffer + i + starts[0], NULL, 10);
-              counts->meth_index[elem->offset + offset]->n_unmeth += g_ascii_strtoll (buffer + i + starts[1], NULL, 10);
+              counts->meth_index[elem->offset + offset]->n_meth   += g_ascii_strtoll (buffer + starts[0], NULL, 10);
+              counts->meth_index[elem->offset + offset]->n_unmeth += g_ascii_strtoll (buffer + starts[1], NULL, 10);
             }
-          else if (field_idx == 2)
+          else if (field_idx == 3)
             {
-              offset = g_ascii_strtoll (buffer + i + starts[0], NULL, 10);
-              counts->meth_index[elem->offset + offset]->n_meth   += g_ascii_strtoll (buffer + i + starts[1], NULL, 10);
-              counts->meth_index[elem->offset + offset]->n_unmeth += g_ascii_strtoll (buffer + i + starts[2], NULL, 10);
+              offset = g_ascii_strtoll (buffer + starts[0], NULL, 10);
+              counts->meth_index[elem->offset + offset]->n_meth   += g_ascii_strtoll (buffer + starts[1], NULL, 10);
+              counts->meth_index[elem->offset + offset]->n_unmeth += g_ascii_strtoll (buffer + starts[2], NULL, 10);
             }
           else if (field_idx != 0)
             g_printerr ("[WARNING] Could not parse meth count line\n");
