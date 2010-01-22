@@ -188,7 +188,9 @@ print_querries (CallbackData *data)
       channel    = g_io_channel_new_file (data->output_path, "w", &error);
       if (error)
         {
-          g_printerr ("[ERROR] Opening quality output file failed: %s\n", error->message);
+          g_printerr ("[ERROR] Opening output file `%s' failed: %s\n",
+                      data->output_path,
+                      error->message);
           exit (1);
         }
     }
@@ -239,7 +241,9 @@ print_querries (CallbackData *data)
       g_io_channel_shutdown (channel, TRUE, &error);
       if (error)
         {
-          g_printerr ("[ERROR] Closing output file failed: %s\n", error->message);
+          g_printerr ("[ERROR] Closing output file `%s' failed: %s\n",
+                      data->output_path,
+                      error->message);
           g_error_free (error);
           error = NULL;
         }

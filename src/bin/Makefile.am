@@ -23,7 +23,8 @@ bin_PROGRAMS = \
 	bsq_empty_regions_content \
 	bsq_methylation_ratio \
 	bsq_summary \
-	cg_merge
+	cg_merge \
+	cg_count_cpg
 
 fastq2fasta_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
@@ -89,6 +90,11 @@ cg_merge_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 cg_merge_SOURCES = \
 	cg_merge.c
+
+cg_count_cpg_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+cg_count_cpg_SOURCES = \
+	cg_count_cpg.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in
