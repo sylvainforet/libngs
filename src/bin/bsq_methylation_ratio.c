@@ -29,9 +29,12 @@ struct _CallbackData
   RefMethCounts     *counts;
 
   int                min_qual;
+  int                max_chh;
   int                verbose;
   int                print_letter;
   int                print_all;
+
+  unsigned int       n_chh_filtered;
 };
 
 static void parse_args    (CallbackData      *data,
@@ -91,6 +94,8 @@ main (int    argc,
                   error->message);
       exit (1);
     }
+  if (data.verbose)
+    g_print ("Number of CHH filtered reads: %u\n", data.n_chh_filtered);
   cleanup_data (&data);
 
   return 0;
@@ -109,6 +114,7 @@ parse_args (CallbackData      *data,
       {"out",       'o', 0, G_OPTION_ARG_FILENAME,       &data->output_path,  "Output file", NULL},
       {"add",       'a', 0, G_OPTION_ARG_FILENAME,       &data->add_path,     "Add results to this file", NULL},
       {"min_qual",  'm', 0, G_OPTION_ARG_INT,            &data->min_qual,     "Minimum base quality", NULL},
+      {"max_chh",   'M', 0, G_OPTION_ARG_INT,            &data->max_chh,      "Maximum number of consecutive CHH per read", NULL},
       {"verbose",   'v', 0, G_OPTION_ARG_NONE,           &data->verbose,      "Verbose output", NULL},
       {"letter",    'l', 0, G_OPTION_ARG_NONE,           &data->print_letter, "Prepend a column with the letter", NULL},
       {"all",       'w', 0, G_OPTION_ARG_NONE,           &data->print_all,    "Prints all positions (implies l)", NULL},
@@ -117,15 +123,17 @@ parse_args (CallbackData      *data,
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->ref_path     = NULL;
-  data->fastq_paths  = NULL;
-  data->bsq_paths    = NULL;
-  data->output_path  = strdup("-");
-  data->add_path     = NULL;
-  data->min_qual     = 0;
-  data->verbose      = 0;
-  data->print_letter = 0;
-  data->print_all    = 0;
+  data->ref_path       = NULL;
+  data->fastq_paths    = NULL;
+  data->bsq_paths      = NULL;
+  data->output_path    = strdup("-");
+  data->add_path       = NULL;
+  data->min_qual       = 0;
+  data->max_chh        = 0;
+  data->verbose        = 0;
+  data->print_letter   = 0;
+  data->print_all      = 0;
+  data->n_chh_filtered = 0;
 
   context = g_option_context_new (" - Finds all the potentially methylated Cs");
   g_option_context_add_group (context, get_fasta_option_group ());
@@ -263,6 +271,42 @@ iter_bsq_func (BsqRecord    *rec,
               break;
         }
 
+      /* Dont take into account reads that have more than three consecutive CHH
+       * See Cokus et al, Nature, 2008.
+       */
+      if (data->max_chh > 0)
+        {
+          const unsigned int maxi = read_elem->size - 2;
+          unsigned int       j;
+          unsigned int       n_chh = 0;
+
+          for (i = 0; i < maxi; i++)
+            {
+              const unsigned int maxj = MIN (i + 9, read_elem->size);
+
+              n_chh = 0;
+              for (j = i; j < maxj; j++)
+                {
+                  if (read[j] == 'C' && qual[j] >= data->min_qual + FASTQ_QUAL_0)
+                    {
+                      if (read[j + 1] != 'G' && read[j + 2] != 'G')
+                        n_chh++;
+                      else
+                        n_chh = 0;
+                    }
+                  if (n_chh == data->max_chh)
+                    {
+                      if (data->verbose)
+                        g_print ("CHH-filtered %s on %s\n",
+                                 read_elem->name,
+                                 ref_elem->name);
+                      data->n_chh_filtered++;
+                      goto reverse;
+                    }
+                }
+            }
+        }
+
       for (i = 0; i < read_elem->size; i++)
         {
           if (ref[i] == 'C')
@@ -285,6 +329,7 @@ iter_bsq_func (BsqRecord    *rec,
       /* Put the reference back into place
        * Should not need to have the reads back in the right orientation ...
        */
+reverse:
       if (is_ref_rev)
         ref  = rev_comp_in_place (ref, read_elem->size);
     }
