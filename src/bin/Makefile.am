@@ -21,7 +21,7 @@ bin_PROGRAMS = \
 	bsq2gff \
 	bsq_coverage_distribution \
 	bsq_empty_regions_content \
-	bsq_methylation_ratio \
+	bsq_methylation_counts \
 	bsq_summary \
 	cg_merge \
 	cg_count_cpg
@@ -76,10 +76,10 @@ bsq_empty_regions_content_LDADD = \
 bsq_empty_regions_content_SOURCES = \
 	bsq_empty_regions_content.c
 
-bsq_methylation_ratio_LDADD = \
+bsq_methylation_counts_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
-bsq_methylation_ratio_SOURCES = \
-	bsq_methylation_ratio.c
+bsq_methylation_counts_SOURCES = \
+	bsq_methylation_counts.c
 
 bsq_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la

@@ -29,6 +29,12 @@ struct _CallbackData
   unsigned long      n_cpg;
   unsigned long      n_cpg_meth;
   unsigned long      n_cpg_unmeth;
+  unsigned long      n_chg;
+  unsigned long      n_chg_meth;
+  unsigned long      n_chg_unmeth;
+  unsigned long      n_chh;
+  unsigned long      n_chh_meth;
+  unsigned long      n_chh_unmeth;
 };
 
 static void parse_args    (CallbackData      *data,
@@ -65,7 +71,7 @@ parse_args (CallbackData      *data,
       {"reference", 'r', 0, G_OPTION_ARG_FILENAME, &data->ref_path,     "Reference genome file", NULL},
       {"out",       'o', 0, G_OPTION_ARG_FILENAME, &data->output_path,  "Output file", NULL},
       {"verbose",   'v', 0, G_OPTION_ARG_NONE,     &data->verbose,      "Verbose output", NULL},
-      {"min_count", 'm', 0, G_OPTION_ARG_INT,      &data->min_count,    "Minimum number of Cs", NULL},
+      {"min_count", 'm', 0, G_OPTION_ARG_INT,      &data->min_count,    "Minimum number of reads", NULL},
       {NULL}
     };
   GError         *error = NULL;
@@ -82,6 +88,12 @@ parse_args (CallbackData      *data,
   data->n_cpg        = 0;
   data->n_cpg_meth   = 0;
   data->n_cpg_unmeth = 0;
+  data->n_chg        = 0;
+  data->n_chg_meth   = 0;
+  data->n_chg_unmeth = 0;
+  data->n_chh        = 0;
+  data->n_chh_meth   = 0;
+  data->n_chh_unmeth = 0;
 
   context = g_option_context_new ("FILE - Counts various kinds of Cs in the genome");
   g_option_context_add_main_entries (context, entries, NULL);
@@ -144,7 +156,7 @@ count_cgs (CallbackData *data)
   GHashTableIter  iter;
   GIOChannel     *channel;
   SeqDBElement   *elem;
-  GString        *buffer;
+  char           *buffer;
   GError         *error      = NULL;
   int             use_stdout = 1;
 
@@ -155,49 +167,78 @@ count_cgs (CallbackData *data)
   while (g_hash_table_iter_next (&iter, NULL, (gpointer*)&elem))
     {
       guint64       i;
-      const guint64 maxi = elem->offset + elem->size - 1;
+      const guint64 maxi = elem->offset + elem->size - 2;
 
-      for (i = elem->offset; i < maxi; i++)
+      /* TODO
+       * Take border effects into account?
+       * This would mean to also consider:
+       * the CpGs that occur at +1 (fromthe start) and -1 (from the end)
+       * the Cs that occur at +0 and -0
+       */
+      for (i = elem->offset + 2; i < maxi; i++)
         {
           if (data->ref->seqs[i] == 'C')
             {
+              data->n_c++;
+              /* CpG */
               if (data->ref->seqs[i + 1] == 'G')
                 {
                   data->n_cpg++;
-                  /* FIXME Should it be data->min_count * 2 ? */
-                  if (data->counts->meth_index[i]->n_meth + data->counts->meth_index[i + 1]->n_meth >= data->min_count)
+                  if (data->counts->meth_index[i]->n_meth >= data->min_count)
                     data->n_cpg_meth++;
-                  else if (data->counts->meth_index[i]->n_unmeth + data->counts->meth_index[i + 1]->n_unmeth >= data->min_count)
+                  else if (data->counts->meth_index[i]->n_unmeth >= data->min_count)
                     data->n_cpg_unmeth++;
-
-                  /* Skip the G */
-                  i++;
                 }
+              /* CHG */
+              else if (data->ref->seqs[i + 2] == 'G')
+                {
+                  data->n_chg++;
+                  if (data->counts->meth_index[i]->n_meth >= data->min_count)
+                    data->n_chg_meth++;
+                  else if (data->counts->meth_index[i]->n_unmeth >= data->min_count)
+                    data->n_chg_unmeth++;
+                }
+              /* CHH */
               else
                 {
-                  data->n_c++;
+                  data->n_chh++;
                   if (data->counts->meth_index[i]->n_meth >= data->min_count)
-                    data->n_c_meth++;
+                    data->n_chh_meth++;
                   else if (data->counts->meth_index[i]->n_unmeth >= data->min_count)
-                    data->n_c_unmeth++;
+                    data->n_chh_unmeth++;
                 }
             }
           else if (data->ref->seqs[i] == 'G')
             {
               data->n_c++;
-              if (data->counts->meth_index[i]->n_meth >= data->min_count)
-                data->n_c_meth++;
-              else if (data->counts->meth_index[i]->n_unmeth >= data->min_count)
-                data->n_c_unmeth++;
+              /* CpG */
+              if (data->ref->seqs[i - 1] == 'C')
+                {
+                  data->n_cpg++;
+                  if (data->counts->meth_index[i]->n_meth >= data->min_count)
+                    data->n_cpg_meth++;
+                  else if (data->counts->meth_index[i]->n_unmeth >= data->min_count)
+                    data->n_cpg_unmeth++;
+                }
+              /* CHG */
+              else if (data->ref->seqs[i - 2] == 'C')
+                {
+                  data->n_chg++;
+                  if (data->counts->meth_index[i]->n_meth >= data->min_count)
+                    data->n_chg_meth++;
+                  else if (data->counts->meth_index[i]->n_unmeth >= data->min_count)
+                    data->n_chg_unmeth++;
+                }
+              /* CHH */
+              else
+                {
+                  data->n_chh++;
+                  if (data->counts->meth_index[i]->n_meth >= data->min_count)
+                    data->n_chh_meth++;
+                  else if (data->counts->meth_index[i]->n_unmeth >= data->min_count)
+                    data->n_chh_unmeth++;
+                }
             }
-        }
-      if (i == maxi && (data->ref->seqs[i] == 'C' || data->ref->seqs[i] == 'G'))
-        {
-          data->n_c++;
-          if (data->counts->meth_index[i]->n_meth >= data->min_count)
-            data->n_c_meth++;
-          else if (data->counts->meth_index[i]->n_unmeth >= data->min_count)
-            data->n_c_unmeth++;
         }
     }
 
@@ -216,17 +257,31 @@ count_cgs (CallbackData *data)
         }
     }
 
-  buffer = g_string_new ("Methylated and unmethylated Cs and CpGs counts\n");
-  g_string_append_printf (buffer, "(Min count : %d)\n\n", data->min_count);
-  g_string_append_printf (buffer, "  Total number of C/G        : %12ld\n", data->n_c);
-  g_string_append_printf (buffer, "  Number of methylated C/G   : %12ld\n", data->n_c_meth);
-  g_string_append_printf (buffer, "  Number of un-methylated C/G: %12ld\n", data->n_c_unmeth);
-  g_string_append_printf (buffer, "  Total number of CpG        : %12ld\n", data->n_cpg);
-  g_string_append_printf (buffer, "  Number of methylated CpG   : %12ld\n", data->n_cpg_meth);
-  g_string_append_printf (buffer, "  Number of un-methylated CpG: %12ld\n", data->n_cpg_unmeth);
+  buffer = g_strdup_printf ("Methylated and unmethylated Cs and CpGs counts (min count = %d)\n"
+                            "  C   total  : %12ld\n"
+                            "  CpG total  : %12ld\n"
+                            "  CpG meth   : %12ld\n"
+                            "  CpG un-meth: %12ld\n"
+                            "  CHG total  : %12ld\n"
+                            "  CHG meth   : %12ld\n"
+                            "  CHG un-meth: %12ld\n"
+                            "  CHH total  : %12ld\n"
+                            "  CHH meth   : %12ld\n"
+                            "  CHH un-meth: %12ld\n",
+                            data->min_count,
+                            data->n_c,
+                            data->n_cpg,
+                            data->n_cpg_meth,
+                            data->n_cpg_unmeth,
+                            data->n_chg,
+                            data->n_chg_meth,
+                            data->n_chg_unmeth,
+                            data->n_chh,
+                            data->n_chh_meth,
+                            data->n_chh_unmeth);
 
   g_io_channel_write_chars (channel,
-                            buffer->str,
+                            buffer,
                             -1,
                             NULL,
                             &error);
@@ -238,7 +293,7 @@ count_cgs (CallbackData *data)
       g_error_free (error);
       error = NULL;
     }
-  g_string_free (buffer, TRUE);
+  g_free (buffer);
 
   if (!use_stdout)
     {
