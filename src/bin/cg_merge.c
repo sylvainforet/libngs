@@ -45,6 +45,8 @@ main (int    argc,
   load_ref (&data);
   for (i = 1; i < argc; i++)
     {
+      if (data.verbose)
+        g_print (">>> Loading meth file: %s\n", argv[i]);
       ref_meth_counts_add_path (data.counts,
                                 data.ref,
                                 argv[i],
@@ -57,6 +59,8 @@ main (int    argc,
           exit (1);
         }
     }
+  if (data.verbose)
+    g_print (">>> Writing meth file: %s\n", data.output_path);
   ref_meth_counts_write (data.counts,
                          data.ref,
                          data.output_path,

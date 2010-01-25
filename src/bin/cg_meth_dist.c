@@ -13,6 +13,7 @@ typedef enum
   METH_CPG = 0,
   METH_CHG,
   METH_CHH,
+  METH_ALL,
   METH_TYPE_NB
 }
 MethylationType;
@@ -21,7 +22,8 @@ char *meth_type_names[METH_TYPE_NB] =
 {
   [METH_CPG] = "cpg",
   [METH_CHG] = "chg",
-  [METH_CHH] = "chh"
+  [METH_CHH] = "chh",
+  [METH_ALL] = "all"
 };
 
 
@@ -38,6 +40,7 @@ struct _CallbackData
   RefMethCounts     *counts;
 
   int                verbose;
+  int                ratio;
   int                min_count_meth;
   int                min_count_unmeth;
   int                min_count_tot;
@@ -80,10 +83,11 @@ parse_args (CallbackData      *data,
       {"reference",        'r', 0, G_OPTION_ARG_FILENAME, &data->ref_path,         "Reference genome file", NULL},
       {"out",              'o', 0, G_OPTION_ARG_FILENAME, &data->output_path,      "Output file", NULL},
       {"verbose",          'v', 0, G_OPTION_ARG_NONE,     &data->verbose,          "Verbose output", NULL},
+      {"ratio",            'a', 0, G_OPTION_ARG_NONE,     &data->ratio,            "Output ratio instead of meth/unmeth numbers (default)", NULL},
       {"min_count_meth",   'm', 0, G_OPTION_ARG_INT,      &data->min_count_meth,   "Minimum number of methylated reads", NULL},
       {"min_count_unmeth", 'u', 0, G_OPTION_ARG_INT,      &data->min_count_unmeth, "Minimum number of unmethylated reads", NULL},
       {"min_count_tot",    't', 0, G_OPTION_ARG_INT,      &data->min_count_tot,    "Minimum total number of reads", NULL},
-      {"meth_type",        'c', 0, G_OPTION_ARG_STRING,   &data->meth_type_str,    "Type of methylation", "[cpg|chg|chh]"},
+      {"meth_type",        'c', 0, G_OPTION_ARG_STRING,   &data->meth_type_str,    "Type of methylation", "[cpg|chg|chh|all]"},
       {NULL}
     };
   GError         *error = NULL;
@@ -96,6 +100,7 @@ parse_args (CallbackData      *data,
   data->min_count_unmeth = 0;
   data->min_count_tot    = 0;
   data->verbose          = 0;
+  data->ratio            = 0;
   data->meth_type_str    = NULL;
 
   context = g_option_context_new ("FILE - Prints the methylation ratios");
@@ -123,10 +128,11 @@ parse_args (CallbackData      *data,
   data->meth_type = get_meth_type (data->meth_type_str);
   if (data->meth_type < 0)
     {
-      g_printerr ("[ERROR] meth_type (-c) must be one of: %s, %s, %s\n",
+      g_printerr ("[ERROR] meth_type (-c) must be one of: %s, %s, %s, %s\n",
                   meth_type_names[METH_CPG],
                   meth_type_names[METH_CHG],
-                  meth_type_names[METH_CHH]);
+                  meth_type_names[METH_CHH],
+                  meth_type_names[METH_ALL]);
       exit (1);
     }
 }
@@ -196,35 +202,64 @@ write_ratios (CallbackData *data)
 
           if (data->ref->seqs[i] == 'C')
             {
+              if (data->meth_type == METH_ALL)
+                print_this_one = 1;
               /* CpG */
-              if (data->ref->seqs[i + 1] == 'G' && data->meth_type == METH_CPG)
-                print_this_one = 1;
+              else if (data->ref->seqs[i + 1] == 'G')
+                {
+                  if (data->meth_type == METH_CPG)
+                    print_this_one = 1;
+                }
               /* CHG */
-              else if (data->ref->seqs[i + 2] == 'G' && data->meth_type == METH_CHG)
-                print_this_one = 1;
+              else if (data->ref->seqs[i + 2] == 'G')
+                {
+                  if (data->meth_type == METH_CHG)
+                    print_this_one = 1;
+                }
               /* CHH */
-              else if (data->meth_type == METH_CHH)
-                print_this_one = 1;
+              else
+                {
+                  if (data->meth_type == METH_CHH)
+                    print_this_one = 1;
+                }
             }
           else if (data->ref->seqs[i] == 'G')
             {
+              if (data->meth_type == METH_ALL)
+                print_this_one = 1;
               /* CpG */
-              if (data->ref->seqs[i - 1] == 'C' && data->meth_type == METH_CPG)
-                print_this_one = 1;
+              else if (data->ref->seqs[i - 1] == 'C')
+                {
+                  if (data->meth_type == METH_CPG)
+                    print_this_one = 1;
+                }
               /* CHG */
-              else if (data->ref->seqs[i - 2] == 'C' && data->meth_type == METH_CHG)
-                print_this_one = 1;
+              else if (data->ref->seqs[i - 2] == 'C')
+                {
+                  if (data->meth_type == METH_CHG)
+                    print_this_one = 1;
+                }
               /* CHH */
-              else if (data->meth_type == METH_CHH)
-                print_this_one = 1;
+              else
+                {
+                  if (data->meth_type == METH_CHH)
+                    print_this_one = 1;
+                }
             }
           if (print_this_one &&
               data->counts->meth_index[i]->n_meth >= data->min_count_meth &&
               data->counts->meth_index[i]->n_unmeth >= data->min_count_unmeth &&
               data->counts->meth_index[i]->n_meth + data->counts->meth_index[i]->n_unmeth >= data->min_count_tot)
-            g_string_append_printf (buffer, "%.3f\n",
-                                    (100.0 * data->counts->meth_index[i]->n_meth) /
-                                    (data->counts->meth_index[i]->n_meth + data->counts->meth_index[i]->n_unmeth));
+            {
+              if (data->ratio)
+                g_string_append_printf (buffer, "%.3f\n",
+                                        ((float)data->counts->meth_index[i]->n_meth) /
+                                        (data->counts->meth_index[i]->n_meth + data->counts->meth_index[i]->n_unmeth));
+              else
+                g_string_append_printf (buffer, "%d\t%d\n",
+                                        data->counts->meth_index[i]->n_meth,
+                                        data->counts->meth_index[i]->n_unmeth);
+            }
         }
     }
 
