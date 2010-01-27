@@ -44,7 +44,7 @@ iter_fasta (const char   *path,
             void         *data,
             GError      **error)
 {
-  if (fasta_parser_name == NULL || g_strcmp0 (fasta_parser_name, "flex") == 0)
+  if (fasta_parser_name == NULL || strcmp (fasta_parser_name, "flex") == 0)
     iter_fasta_flex (path, func, data, error);
   else
     {

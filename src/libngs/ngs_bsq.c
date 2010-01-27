@@ -71,13 +71,13 @@ iter_bsq (char         *path,
           void         *data,
           GError      **error)
 {
-  if (bsq_parser_name == NULL || g_strcmp0 (bsq_parser_name, "flex") == 0)
+  if (bsq_parser_name == NULL || strcmp (bsq_parser_name, "flex") == 0)
     iter_bsq_flex (path, func, data, error);
-  else if (g_strcmp0 (bsq_parser_name, "simple") == 0)
+  else if (strcmp (bsq_parser_name, "simple") == 0)
     iter_bsq_simple (path, func, data, error);
-  else if (g_strcmp0 (bsq_parser_name, "flexugly") == 0)
+  else if (strcmp (bsq_parser_name, "flexugly") == 0)
     iter_bsq_flex_ugly (path, func, data, error);
-  else if (g_strcmp0 (bsq_parser_name, "flexline") == 0)
+  else if (strcmp (bsq_parser_name, "flexline") == 0)
     iter_bsq_flex_line (path, func, data, error);
   else
     {

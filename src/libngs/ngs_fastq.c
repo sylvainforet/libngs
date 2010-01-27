@@ -72,13 +72,13 @@ iter_fastq (const char   *path,
             void         *data,
             GError      **error)
 {
-  if (fastq_parser_name == NULL || g_strcmp0 (fastq_parser_name, "flex") == 0)
+  if (fastq_parser_name == NULL || strcmp (fastq_parser_name, "flex") == 0)
     iter_fastq_flex (path, func, data, error);
-  else if (g_strcmp0 (fastq_parser_name, "simple") == 0)
+  else if (strcmp (fastq_parser_name, "simple") == 0)
     iter_fastq_simple (path, func, data, error);
-  else if (g_strcmp0 (fastq_parser_name, "ugly") == 0)
+  else if (strcmp (fastq_parser_name, "ugly") == 0)
     iter_fastq_ugly (path, func, data, error);
-  else if (g_strcmp0 (fastq_parser_name, "flexugly") == 0)
+  else if (strcmp (fastq_parser_name, "flexugly") == 0)
     iter_fastq_flex_ugly (path, func, data, error);
   else
     {
