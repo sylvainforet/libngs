@@ -15,6 +15,7 @@ bin_PROGRAMS = \
 	fastq_base_qual_summary \
 	fastq_fetch \
 	fastq_letter_qual \
+	fastq_qual_length_summary \
 	fastq_read_qual_summary \
 	fastq_sample \
 	fastq_trim \
@@ -46,6 +47,11 @@ fastq_letter_qual_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 fastq_letter_qual_SOURCES = \
 	fastq_letter_qual.c
+
+fastq_qual_length_summary_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+fastq_qual_length_summary_SOURCES = \
+	fastq_qual_length_summary.c
 
 fastq_read_qual_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la

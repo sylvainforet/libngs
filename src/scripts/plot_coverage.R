@@ -1,4 +1,4 @@
-# vim:ft=r:
+##
 
 get_data <- function(path)
 {
@@ -93,3 +93,5 @@ plot_coverage_cum <- function(paths, ...)
             xjust=1,
             yjust=1)
 }
+
+# vim:ft=r:expandtab:ts=4:sw=4:

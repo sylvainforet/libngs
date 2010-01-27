@@ -129,7 +129,7 @@ iter_func (FastqSeq     *fastq,
   int read_mean = 0;
 
   for (i = 0; i < fastq->size; i++)
-    read_qual += fastq->qual[i] - 64;
+    read_qual += fastq->qual[i] - FASTQ_QUAL_0;
 
   read_mean = 0.5 + ((float)read_qual) / fastq->size;
   data->qual[read_mean]++;

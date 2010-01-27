@@ -5,11 +5,12 @@ bin_SCRIPTS = \
 	table2fastq.py
 
 EXTRA_DIST = \
-	extract_CG_contig.py \
 	fastq_sample_mate_pairs.sh.in \
+	extract_CG_contig.py \
 	interleave.py \
+	table2fastq.py \
 	plot_coverage.R \
-	table2fastq.py
+	plot_qual.R
 
 fastq_sample_mate_pairs.sh: fastq_sample_mate_pairs.sh.in
 	sed \
@@ -19,7 +20,8 @@ fastq_sample_mate_pairs.sh: fastq_sample_mate_pairs.sh.in
 r_scriptsdir = $(pkgdatadir)/r_scripts
 
 r_scripts_DATA = \
-	plot_coverage.R
+	plot_coverage.R \
+	plot_qual.R
 
 CLEANFILES = \
 	fastq_sample_mate_pairs.sh
