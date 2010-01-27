@@ -41,6 +41,8 @@ struct _CallbackData
 
   int                verbose;
   int                ratio;
+  int                sidebyside;
+  int                merge;
   int                min_count_meth;
   int                min_count_unmeth;
   int                min_count_tot;
@@ -84,6 +86,8 @@ parse_args (CallbackData      *data,
       {"out",              'o', 0, G_OPTION_ARG_FILENAME, &data->output_path,      "Output file", NULL},
       {"verbose",          'v', 0, G_OPTION_ARG_NONE,     &data->verbose,          "Verbose output", NULL},
       {"ratio",            'a', 0, G_OPTION_ARG_NONE,     &data->ratio,            "Output ratio instead of meth/unmeth numbers (default)", NULL},
+      {"merge",            'g', 0, G_OPTION_ARG_NONE,     &data->merge,            "Merge both strands (cpg only)", NULL},
+      {"sidebyside",       's', 0, G_OPTION_ARG_NONE,     &data->sidebyside,       "put both strands next to each others (cpg only)", NULL},
       {"min_count_meth",   'm', 0, G_OPTION_ARG_INT,      &data->min_count_meth,   "Minimum number of methylated reads", NULL},
       {"min_count_unmeth", 'u', 0, G_OPTION_ARG_INT,      &data->min_count_unmeth, "Minimum number of unmethylated reads", NULL},
       {"min_count_tot",    't', 0, G_OPTION_ARG_INT,      &data->min_count_tot,    "Minimum total number of reads", NULL},
@@ -101,6 +105,8 @@ parse_args (CallbackData      *data,
   data->min_count_tot    = 0;
   data->verbose          = 0;
   data->ratio            = 0;
+  data->sidebyside       = 0;
+  data->merge            = 0;
   data->meth_type_str    = NULL;
 
   context = g_option_context_new ("FILE - Prints the methylation ratios");
@@ -133,6 +139,12 @@ parse_args (CallbackData      *data,
                   meth_type_names[METH_CHG],
                   meth_type_names[METH_CHH],
                   meth_type_names[METH_ALL]);
+      exit (1);
+    }
+  if ((data->sidebyside || data->merge) && data->meth_type != METH_CPG)
+    {
+      g_printerr ("[ERROR] sidebyside (-s) and merge (-g) can only be used with: -c %s\n",
+                  meth_type_names[METH_CPG]);
       exit (1);
     }
 }
@@ -187,16 +199,27 @@ write_ratios (CallbackData *data)
   g_hash_table_iter_init (&iter, data->ref->index);
   while (g_hash_table_iter_next (&iter, NULL, (gpointer*)&elem))
     {
-      guint64       i;
-      const guint64 maxi = elem->offset + elem->size - 2;
+      guint64 start;
+      guint64 maxi;
+      guint64 i;
 
-      /* TODO
-       * Take border effects into account?
-       * This would mean to also consider:
-       * the CpGs that occur at +1 (fromthe start) and -1 (from the end)
-       * the Cs that occur at +0 and -0
-       */
-      for (i = elem->offset + 2; i < maxi; i++)
+      maxi  = elem->offset + elem->size - 2;
+      start = elem->offset + 2;
+      if (data->meth_type == METH_CPG)
+        {
+          if (data->sidebyside || data->merge)
+            {
+              maxi  = elem->offset + elem->size - 1;
+              start = elem->offset;
+            }
+          else
+            {
+              maxi  = elem->offset + elem->size - 1;
+              start = elem->offset + 1;
+            }
+        }
+
+      for (i = start; i < maxi; i++)
         {
           int print_this_one = 0;
 
@@ -223,7 +246,7 @@ write_ratios (CallbackData *data)
                     print_this_one = 1;
                 }
             }
-          else if (data->ref->seqs[i] == 'G')
+          else if (data->ref->seqs[i] == 'G' && !data->sidebyside && !data->merge)
             {
               if (data->meth_type == METH_ALL)
                 print_this_one = 1;
@@ -251,7 +274,34 @@ write_ratios (CallbackData *data)
               data->counts->meth_index[i]->n_unmeth >= data->min_count_unmeth &&
               data->counts->meth_index[i]->n_meth + data->counts->meth_index[i]->n_unmeth >= data->min_count_tot)
             {
-              if (data->ratio)
+              if (data->meth_type == METH_CPG && data->sidebyside)
+                {
+                  if (data->ratio)
+                    g_string_append_printf (buffer, "%.3f\t%.3f\n",
+                                            ((float)data->counts->meth_index[i]->n_meth) /
+                                            (data->counts->meth_index[i]->n_meth + data->counts->meth_index[i]->n_unmeth),
+                                            ((float)data->counts->meth_index[i + 1]->n_meth) /
+                                            (data->counts->meth_index[i + 1]->n_meth + data->counts->meth_index[i + 1]->n_unmeth));
+                  else
+                    g_string_append_printf (buffer, "%d\t%d\t%d\t%d\n",
+                                            data->counts->meth_index[i]->n_meth,
+                                            data->counts->meth_index[i]->n_unmeth,
+                                            data->counts->meth_index[i + 1]->n_meth,
+                                            data->counts->meth_index[i + 1]->n_unmeth);
+                }
+              else if (data->meth_type == METH_CPG && data->merge)
+                {
+                  if (data->ratio)
+                    g_string_append_printf (buffer, "%.3f\n",
+                                            ((float)(data->counts->meth_index[i]->n_meth + data->counts->meth_index[i + 1]->n_meth)) /
+                                            (data->counts->meth_index[i]->n_meth + data->counts->meth_index[i]->n_unmeth +
+                                             data->counts->meth_index[i + 1]->n_meth + data->counts->meth_index[i + 1]->n_unmeth));
+                  else
+                    g_string_append_printf (buffer, "%d\t%d\n",
+                                            data->counts->meth_index[i]->n_meth + data->counts->meth_index[i + 1]->n_meth,
+                                            data->counts->meth_index[i]->n_unmeth + data->counts->meth_index[i + 1]->n_unmeth);
+                }
+              else if (data->ratio)
                 g_string_append_printf (buffer, "%.3f\n",
                                         ((float)data->counts->meth_index[i]->n_meth) /
                                         (data->counts->meth_index[i]->n_meth + data->counts->meth_index[i]->n_unmeth));
