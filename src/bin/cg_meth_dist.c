@@ -43,6 +43,9 @@ struct _CallbackData
   int                ratio;
   int                sidebyside;
   int                merge;
+  int                print_header;
+  int                print_position;
+
   int                min_count_meth;
   int                min_count_unmeth;
   int                min_count_tot;
@@ -87,7 +90,9 @@ parse_args (CallbackData      *data,
       {"verbose",          'v', 0, G_OPTION_ARG_NONE,     &data->verbose,          "Verbose output", NULL},
       {"ratio",            'a', 0, G_OPTION_ARG_NONE,     &data->ratio,            "Output ratio instead of meth/unmeth numbers (default)", NULL},
       {"merge",            'g', 0, G_OPTION_ARG_NONE,     &data->merge,            "Merge both strands (cpg only)", NULL},
-      {"sidebyside",       's', 0, G_OPTION_ARG_NONE,     &data->sidebyside,       "put both strands next to each others (cpg only)", NULL},
+      {"sidebyside",       's', 0, G_OPTION_ARG_NONE,     &data->sidebyside,       "Put both strands next to each others (cpg only)", NULL},
+      {"print_header",     'e', 0, G_OPTION_ARG_NONE,     &data->print_header,     "Print a fasta-like header before each contig", NULL},
+      {"print_position",   'p', 0, G_OPTION_ARG_NONE,     &data->print_position,   "Print a first column with the position", NULL},
       {"min_count_meth",   'm', 0, G_OPTION_ARG_INT,      &data->min_count_meth,   "Minimum number of methylated reads", NULL},
       {"min_count_unmeth", 'u', 0, G_OPTION_ARG_INT,      &data->min_count_unmeth, "Minimum number of unmethylated reads", NULL},
       {"min_count_tot",    't', 0, G_OPTION_ARG_INT,      &data->min_count_tot,    "Minimum total number of reads", NULL},
@@ -107,6 +112,8 @@ parse_args (CallbackData      *data,
   data->ratio            = 0;
   data->sidebyside       = 0;
   data->merge            = 0;
+  data->print_header     = 0;
+  data->print_position   = 0;
   data->meth_type_str    = NULL;
 
   context = g_option_context_new ("FILE - Prints the methylation ratios");
@@ -203,6 +210,9 @@ write_ratios (CallbackData *data)
       guint64 maxi;
       guint64 i;
 
+      if (data->print_header)
+        g_string_append_printf (buffer, ">%s\n", elem->name);
+
       maxi  = elem->offset + elem->size - 2;
       start = elem->offset + 2;
       if (data->meth_type == METH_CPG)
@@ -274,6 +284,8 @@ write_ratios (CallbackData *data)
               data->counts->meth_index[i]->n_unmeth >= data->min_count_unmeth &&
               data->counts->meth_index[i]->n_meth + data->counts->meth_index[i]->n_unmeth >= data->min_count_tot)
             {
+              if (data->print_position)
+                g_string_append_printf (buffer, "%lu\t", i);
               if (data->meth_type == METH_CPG && data->sidebyside)
                 {
                   if (data->ratio)
