@@ -34,7 +34,12 @@ struct _CallbackData
   int                print_letter;
   int                print_all;
 
-  unsigned int       n_chh_filtered;
+  unsigned long int  n_chh_filtered;
+  unsigned long int  n_nqs_filtered;
+
+  unsigned int       nqs_each_side;
+  unsigned int       nqs_mismatches;
+  unsigned int       nqs_neighbor_qual;
 };
 
 static void parse_args    (CallbackData      *data,
@@ -95,7 +100,10 @@ main (int    argc,
       exit (1);
     }
   if (data.verbose)
-    g_print ("Number of CHH filtered reads: %u\n", data.n_chh_filtered);
+    {
+      g_print ("Number of CHH filtered reads: %lu\n", data.n_chh_filtered);
+      g_print ("Number of NQS filtered bases: %lu\n", data.n_nqs_filtered);
+    }
   cleanup_data (&data);
 
   return 0;
@@ -108,32 +116,45 @@ parse_args (CallbackData      *data,
 {
   GOptionEntry entries[] =
     {
-      {"reference", 'r', 0, G_OPTION_ARG_FILENAME,       &data->ref_path,     "Reference genome file", NULL},
-      {"bsq",       'b', 0, G_OPTION_ARG_FILENAME_ARRAY, &data->bsq_paths,    "Bsmap bsq file(s)", NULL},
-      {"fastq",     'f', 0, G_OPTION_ARG_FILENAME_ARRAY, &data->fastq_paths,  "Fastq file(s)", NULL},
-      {"out",       'o', 0, G_OPTION_ARG_FILENAME,       &data->output_path,  "Output file", NULL},
-      {"add",       'a', 0, G_OPTION_ARG_FILENAME,       &data->add_path,     "Add results to this file", NULL},
-      {"min_qual",  'm', 0, G_OPTION_ARG_INT,            &data->min_qual,     "Minimum base quality", NULL},
-      {"max_chh",   'M', 0, G_OPTION_ARG_INT,            &data->max_chh,      "Maximum number of consecutive CHH per read", NULL},
-      {"verbose",   'v', 0, G_OPTION_ARG_NONE,           &data->verbose,      "Verbose output", NULL},
-      {"letter",    'l', 0, G_OPTION_ARG_NONE,           &data->print_letter, "Prepend a column with the letter", NULL},
-      {"all",       'w', 0, G_OPTION_ARG_NONE,           &data->print_all,    "Prints all positions (implies l)", NULL},
+      /* Input options */
+      {"reference", 'r', 0, G_OPTION_ARG_FILENAME,       &data->ref_path,    "Reference genome file", NULL},
+      {"bsq",       'b', 0, G_OPTION_ARG_FILENAME_ARRAY, &data->bsq_paths,   "Bsmap bsq file(s)", NULL},
+      {"fastq",     'f', 0, G_OPTION_ARG_FILENAME_ARRAY, &data->fastq_paths, "Fastq file(s)", NULL},
+      {"out",       'o', 0, G_OPTION_ARG_FILENAME,       &data->output_path, "Output file", NULL},
+      {"add",       'a', 0, G_OPTION_ARG_FILENAME,       &data->add_path,    "Add results to this file", NULL},
+
+      /* Mapping options */
+      {"min_qual", 'm', 0, G_OPTION_ARG_INT, &data->min_qual, "Minimum base quality", NULL},
+      {"max_chh",  'M', 0, G_OPTION_ARG_INT, &data->max_chh,  "Maximum number of consecutive CHH per read", NULL},
+
+      {"nqs_each_side",     's', 0, G_OPTION_ARG_INT, &data->nqs_each_side,     "Number of bases to consider on each side for the NQS criterion", NULL},
+      {"nqs_mismatches",    't', 0, G_OPTION_ARG_INT, &data->nqs_mismatches,    "Maximum number of mismatches for the NQS criterion", NULL},
+      {"nqs_neighbor_qual", 'n', 0, G_OPTION_ARG_INT, &data->nqs_neighbor_qual, "Minimum neighbor quality for the NQS criterion", NULL},
+
+      /* Output options */
+      {"verbose", 'v', 0, G_OPTION_ARG_NONE, &data->verbose,      "Verbose output", NULL},
+      {"letter",  'l', 0, G_OPTION_ARG_NONE, &data->print_letter, "Prepend a column with the letter", NULL},
+      {"all",     'w', 0, G_OPTION_ARG_NONE, &data->print_all,    "Prints all positions (implies l)", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->ref_path       = NULL;
-  data->fastq_paths    = NULL;
-  data->bsq_paths      = NULL;
-  data->output_path    = strdup("-");
-  data->add_path       = NULL;
-  data->min_qual       = 0;
-  data->max_chh        = 0;
-  data->verbose        = 0;
-  data->print_letter   = 0;
-  data->print_all      = 0;
-  data->n_chh_filtered = 0;
+  data->ref_path          = NULL;
+  data->fastq_paths       = NULL;
+  data->bsq_paths         = NULL;
+  data->output_path       = strdup("-");
+  data->add_path          = NULL;
+  data->min_qual          = 0;
+  data->max_chh           = 0;
+  data->verbose           = 0;
+  data->print_letter      = 0;
+  data->print_all         = 0;
+  data->n_chh_filtered    = 0;
+  data->n_nqs_filtered    = 0;
+  data->nqs_each_side     = 0;
+  data->nqs_mismatches    = 0;
+  data->nqs_neighbor_qual = 0;
 
   context = g_option_context_new (" - Finds all the potentially methylated Cs");
   g_option_context_add_group (context, get_fasta_option_group ());
@@ -166,6 +187,10 @@ parse_args (CallbackData      *data,
     g_printerr ("[WARNING] Minimum quality is set to %d, "
                 "it is likely that few or no bases will be considered\n",
                 data->min_qual);
+
+  data->min_qual          += FASTQ_QUAL_0;
+  data->nqs_neighbor_qual += FASTQ_QUAL_0;
+
   if (data->print_all)
     data->print_letter = 1;
 }
@@ -287,7 +312,7 @@ iter_bsq_func (BsqRecord    *rec,
               n_chh = 0;
               for (j = i; j < maxj; j++)
                 {
-                  if (read[j] == 'C' && qual[j] >= data->min_qual + FASTQ_QUAL_0)
+                  if (read[j] == 'C' && qual[j] >= data->min_qual)
                     {
                       if (read[j + 1] != 'G' && read[j + 2] != 'G')
                         n_chh++;
@@ -307,21 +332,110 @@ iter_bsq_func (BsqRecord    *rec,
             }
         }
 
-      for (i = 0; i < read_elem->size; i++)
-        {
-          if (ref[i] == 'C')
-            {
-              if (qual[i] >= data->min_qual + FASTQ_QUAL_0)
-                {
-                  unsigned int meth_idx;
+      /* No NQS */
+      if (data->nqs_each_side <= 0)
+        for (i = 0; i < read_elem->size; i++)
+          {
+            if (ref[i] == 'C')
+              {
+                if (qual[i] >= data->min_qual)
+                  {
+                    unsigned int meth_idx;
 
-                  meth_idx = i;
-                  if (is_ref_rev)
-                    meth_idx = read_elem->size - i - 1;
-                  if (read[i] == 'C')
-                    data->counts->meth_index[start_ref + meth_idx]->n_meth++;
-                  else if (read[i] == 'T')
-                    data->counts->meth_index[start_ref + meth_idx]->n_unmeth++;
+                    meth_idx = i;
+                    if (is_ref_rev)
+                      meth_idx = read_elem->size - i - 1;
+                    if (read[i] == 'C')
+                      data->counts->meth_index[start_ref + meth_idx]->n_meth++;
+                    else if (read[i] == 'T')
+                      data->counts->meth_index[start_ref + meth_idx]->n_unmeth++;
+                  }
+              }
+          }
+      /* NQS */
+      else
+        {
+          const unsigned int start = data->nqs_each_side;
+          const unsigned int end   = read_elem->size - data->nqs_each_side;
+
+          for (i = start; i < end; i++)
+            {
+              if (ref[i] == 'C')
+                {
+                  unsigned int j;
+                  unsigned int mismatches = 0;
+                  int          good       = 1;
+
+                  for (j = 1; j <= data->nqs_each_side; j++)
+                    {
+                      /* Quality */
+                      if (qual[i - j] < data->nqs_neighbor_qual ||
+                          qual[i + j] < data->nqs_neighbor_qual)
+                        {
+                          good = 0;
+                          break;
+                        }
+                      if (ref[i - j] == 'C')
+                        {
+                          if (read[i - j] != 'C' && read[i - j] != 'T')
+                            {
+                              ++mismatches;
+                              if (mismatches > data->nqs_mismatches)
+                                {
+                                  good = 0;
+                                  break;
+                                }
+                            }
+                        }
+                      else if (ref[i - j] != read[i - j])
+                        {
+                          ++mismatches;
+                          if (mismatches > data->nqs_mismatches)
+                            {
+                              good = 0;
+                              break;
+                            }
+                        }
+                      if (ref[i + j] == 'C')
+                        {
+                          if (read[i + j] != 'C' && read[i + j] != 'T')
+                            {
+                              ++mismatches;
+                              if (mismatches > data->nqs_mismatches)
+                                {
+                                  good = 0;
+                                  break;
+                                }
+                            }
+                        }
+                      else if (ref[i + j] != read[i + j])
+                        {
+                          ++mismatches;
+                          if (mismatches > data->nqs_mismatches)
+                            {
+                              good = 0;
+                              break;
+                            }
+                        }
+                    }
+                  if (!good)
+                    {
+                      data->n_nqs_filtered++;
+                      continue;
+                    }
+
+                  if (qual[i] >= data->min_qual)
+                    {
+                      unsigned int meth_idx;
+
+                      meth_idx = i;
+                      if (is_ref_rev)
+                        meth_idx = read_elem->size - i - 1;
+                      if (read[i] == 'C')
+                        data->counts->meth_index[start_ref + meth_idx]->n_meth++;
+                      else if (read[i] == 'T')
+                        data->counts->meth_index[start_ref + meth_idx]->n_unmeth++;
+                    }
                 }
             }
         }
