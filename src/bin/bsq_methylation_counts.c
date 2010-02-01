@@ -35,6 +35,7 @@ struct _CallbackData
   int                print_all;
 
   unsigned long int  n_chh_filtered;
+  unsigned long int  n_bad_orientation;
   unsigned long int  n_nqs_filtered;
 
   unsigned int       nqs_each_side;
@@ -101,8 +102,9 @@ main (int    argc,
     }
   if (data.verbose)
     {
-      g_print ("Number of CHH filtered reads: %lu\n", data.n_chh_filtered);
-      g_print ("Number of NQS filtered bases: %lu\n", data.n_nqs_filtered);
+      g_print ("Number of CHH filtered reads    : %lu\n", data.n_chh_filtered);
+      g_print ("Number of bad orientation reads : %lu\n", data.n_bad_orientation);
+      g_print ("Number of NQS filtered bases    : %lu\n", data.n_nqs_filtered);
     }
   cleanup_data (&data);
 
@@ -151,6 +153,7 @@ parse_args (CallbackData      *data,
   data->print_letter      = 0;
   data->print_all         = 0;
   data->n_chh_filtered    = 0;
+  data->n_bad_orientation = 0;
   data->n_nqs_filtered    = 0;
   data->nqs_each_side     = 0;
   data->nqs_mismatches    = 0;
@@ -447,6 +450,9 @@ reverse:
       if (is_ref_rev)
         ref  = rev_comp_in_place (ref, read_elem->size);
     }
+  else
+    data->n_bad_orientation++;
+
   return 1;
 }
 
