@@ -92,7 +92,7 @@ parse_args (CallbackData      *data,
       {"merge",            'g', 0, G_OPTION_ARG_NONE,     &data->merge,            "Merge both strands (cpg only)", NULL},
       {"sidebyside",       's', 0, G_OPTION_ARG_NONE,     &data->sidebyside,       "Put both strands next to each others (cpg only)", NULL},
       {"print_header",     'e', 0, G_OPTION_ARG_NONE,     &data->print_header,     "Print a fasta-like header before each contig", NULL},
-      {"print_position",   'p', 0, G_OPTION_ARG_NONE,     &data->print_position,   "Print a first column with the position", NULL},
+      {"print_position",   'p', 0, G_OPTION_ARG_NONE,     &data->print_position,   "Print a first column with the position (zero based)", NULL},
       {"min_count_meth",   'm', 0, G_OPTION_ARG_INT,      &data->min_count_meth,   "Minimum number of methylated reads", NULL},
       {"min_count_unmeth", 'u', 0, G_OPTION_ARG_INT,      &data->min_count_unmeth, "Minimum number of unmethylated reads", NULL},
       {"min_count_tot",    't', 0, G_OPTION_ARG_INT,      &data->min_count_tot,    "Minimum total number of reads", NULL},
@@ -285,7 +285,7 @@ write_ratios (CallbackData *data)
               data->counts->meth_index[i]->n_meth + data->counts->meth_index[i]->n_unmeth >= data->min_count_tot)
             {
               if (data->print_position)
-                g_string_append_printf (buffer, "%lu\t", i);
+                g_string_append_printf (buffer, "%lu\t", i - elem->offset);
               if (data->meth_type == METH_CPG && data->sidebyside)
                 {
                   if (data->ratio)
