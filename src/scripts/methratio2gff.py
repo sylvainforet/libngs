@@ -9,7 +9,7 @@ def parse(path, min_meth, min_ratio, origin):
     contig = None
     if path == '-':
         handle = sys.stdin
-    if path[:-3] == '.gz':
+    elif path[:-3] == '.gz':
         handle = gzip.open(path)
     else:
         handle = open(path)
@@ -19,6 +19,8 @@ def parse(path, min_meth, min_ratio, origin):
             continue
         if line[0] == '>':
             contig = line[1:].split('|')[-1]
+            continue
+        elif not contig:
             continue
         fields   = line.split()
         position = int(fields[0])

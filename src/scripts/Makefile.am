@@ -3,6 +3,7 @@ bin_SCRIPTS = \
 	fastq_sample_mate_pairs.sh \
 	interleave.py \
 	methratio2gff.py \
+	methratios2table.py \
 	table2fastq.py
 
 EXTRA_DIST = \
@@ -10,6 +11,7 @@ EXTRA_DIST = \
 	extract_CG_contig.py \
 	interleave.py \
 	methratio2gff.py \
+	methratios2table.py \
 	table2fastq.py \
 	plot_coverage.R \
 	plot_qual.R
