@@ -1,4 +1,5 @@
 bin_SCRIPTS = \
+	assembly_stats.py \
 	extract_CG_contig.py \
 	fastq_sample_mate_pairs.sh \
 	interleave.py \
@@ -7,6 +8,7 @@ bin_SCRIPTS = \
 	table2fastq.py
 
 EXTRA_DIST = \
+	assembly_stats.py \
 	fastq_sample_mate_pairs.sh.in \
 	extract_CG_contig.py \
 	interleave.py \
