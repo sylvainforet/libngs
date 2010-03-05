@@ -1,5 +1,9 @@
 #!/usr/bin/python
 
+statsNames = ['name',
+              'n75', 'n50', 'n25',
+              'm0', 'm100', 'm200', 'm400', 'm800', 'm1000', 'm2000', 'm4000',
+              's100', 's500', 's1000', 's2000']
 
 def loadAssembly(path):
     handle = open(path)
@@ -27,13 +31,13 @@ def sumLargerThan(sizes, minimum):
     largerSeqs = [x for x in sizes if x >= minimum]
     return sum(largerSeqs)
 
+def printHeader(handle):
+    header         = '\t'.join(statsNames)
+    handle.write(header + '\n')
+
 def printAssemblyStats(sizes, name, handle):
     nContigs       = len(sizes)
     stats          = {}
-    statsNames     = ['name',
-                      'n75', 'n50', 'n25',
-                      'm0', 'm100', 'm200', 'm400', 'm800', 'm1000', 'm2000', 'm4000',
-                      's100', 's500', 's1000', 's2000']
     stats['name' ] = name
     stats['n75'  ] = sizes[nContigs / 4]
     stats['n50'  ] = sizes[nContigs / 2]
@@ -46,12 +50,10 @@ def printAssemblyStats(sizes, name, handle):
     stats['m1000'] = countLargerThan(sizes, 1000)
     stats['m2000'] = countLargerThan(sizes, 2000)
     stats['m4000'] = countLargerThan(sizes, 4000)
-    stats['s100']  = sumLargerThan(sizes, 100)
-    stats['s500']  = sumLargerThan(sizes, 500)
+    stats['s100' ] = sumLargerThan(sizes, 100)
+    stats['s500' ] = sumLargerThan(sizes, 500)
     stats['s1000'] = sumLargerThan(sizes, 1000)
     stats['s2000'] = sumLargerThan(sizes, 2000)
-    header         = '\t'.join(statsNames)
-    handle.write(header + '\n')
     handle.write(name + '\t')
     for i in statsNames[1:-1]:
         handle.write('%d\t' % stats[i])
@@ -63,8 +65,10 @@ def main():
     if len(sys.argv) < 2:
         print 'Usage: %s FILE' % os.path.basename(sys.argv[0])
         sys.exit(1)
-    sizes = loadAssembly(sys.argv[1])
-    printAssemblyStats(sizes, sys.argv[1], sys.stdout)
+    printHeader(sys.stdout)
+    for i in sys.argv[1:]:
+        sizes = loadAssembly(i)
+        printAssemblyStats(sizes, i, sys.stdout)
 
 if __name__ == '__main__':
     main()
