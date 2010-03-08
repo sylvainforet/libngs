@@ -11,22 +11,33 @@ typedef struct _CallbackData CallbackData;
 
 struct _CallbackData
 {
-  int         start;
-  int         end;
-  int         tot_trim;
   char       *input_path;
   char       *output_path;
   GIOChannel *output_channel;
 
+  int         start;
+  int         end;
+  int         tot_trim;
+  int         qual;
+  int         len;
+  int         keep;
+
   int         use_stdout: 1;
 };
 
-static void parse_args (CallbackData      *data,
-                        int               *argc,
-                        char            ***argv);
+static void parse_args  (CallbackData      *data,
+                         int               *argc,
+                         char            ***argv);
 
-static int  iter_func  (FastqSeq          *fastq,
-                        CallbackData      *data);
+static int  iter_func   (FastqSeq          *fastq,
+                         CallbackData      *data);
+
+static int  write_fastq (GIOChannel        *channel,
+                         char              *name,
+                         char              *seq,
+                         char              *qual,
+                         int                start,
+                         int                end);
 
 int
 main (int    argc,
@@ -77,20 +88,26 @@ parse_args (CallbackData      *data,
   GOptionEntry entries[] =
     {
       {"out",   'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output file", NULL},
-      {"start", 's', 0, G_OPTION_ARG_INT, &data->start, "Number of positions to trim at the start", NULL},
-      {"end",   'e', 0, G_OPTION_ARG_INT, &data->end,   "Number of positions to trim at the end", NULL},
+      {"start", 's', 0, G_OPTION_ARG_INT,  &data->start, "Number of positions to trim at the start", NULL},
+      {"end",   'e', 0, G_OPTION_ARG_INT,  &data->end,   "Number of positions to trim at the end", NULL},
+      {"qual",  'q', 0, G_OPTION_ARG_INT,  &data->qual,  "Minimum quality", NULL},
+      {"len",   'l', 0, G_OPTION_ARG_INT,  &data->len,   "Minimum length", NULL},
+      {"keep",  'k', 0, G_OPTION_ARG_NONE, &data->keep,  "Keep an pseudo-entry for too small reads", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->start          = 0;
-  data->end            = 0;
   data->output_path    = "-";
   data->output_channel = NULL;
   data->use_stdout     = 1;
+  data->start          = 0;
+  data->end            = 0;
+  data->qual           = 0;
+  data->len            = 0;
+  data->keep           = 0;
 
-  context = g_option_context_new ("FILE - trims the beginning and end of fastq reads");
+  context = g_option_context_new ("FILE - trims fastq reads");
   g_option_context_add_group (context, get_fastq_option_group ());
   g_option_context_add_main_entries (context, entries, NULL);
   if (!g_option_context_parse (context, argc, argv, &error))
@@ -126,9 +143,7 @@ static int
 iter_func (FastqSeq     *fastq,
            CallbackData *data)
 {
-  GError  *error = NULL;
-  GString *buffer;
-  int      ret = 1;
+  int end;
 
   if (data->tot_trim > fastq->size)
     {
@@ -138,26 +153,59 @@ iter_func (FastqSeq     *fastq,
       exit (1);
     }
 
+  end = fastq->size - data->end;
+  if (data->qual > 0)
+    {
+      int i;
+      for (i = 0; i < fastq->size; i++)
+        if (fastq->qual[i] - FASTQ_QUAL_0 < data->qual)
+          break;
+      if (i < end)
+        end = i;
+    }
+
+  if (end <= data->start ||
+      end - data->start < data->len)
+    {
+      if (data->keep)
+        return write_fastq (data->output_channel,
+                            fastq->name,
+                            "N", "2",  0, 1);
+      return 1;
+    }
+  return write_fastq (data->output_channel,
+                      fastq->name,
+                      fastq->seq,
+                      fastq->qual,
+                      data->start,
+                      end);
+}
+
+static int
+write_fastq (GIOChannel *channel,
+             char       *name,
+             char       *seq,
+             char       *qual,
+             int         start,
+             int         end)
+{
+  GError  *error = NULL;
+  GString *buffer;
+  int      ret = 1;
+
   buffer = g_string_sized_new (512);
-  buffer = g_string_append_c (buffer, '@');
-  buffer = g_string_append (buffer, fastq->name);
+
+  g_string_append_printf (buffer, "@%s\n", name);
+
+  buffer = g_string_append_len (buffer, seq + start, end - start);
   buffer = g_string_append_c (buffer, '\n');
 
-  /* TODO rewrite that without changing the sequencing in place, e.g. using
-   * g_string_append_len */
-  fastq->seq[fastq->size - data->end] = '\0';
-  buffer = g_string_append (buffer, fastq->seq + data->start);
+  g_string_append_printf (buffer, "+%s\n", name);
+
+  buffer = g_string_append_len (buffer, qual + start, end - start);
   buffer = g_string_append_c (buffer, '\n');
 
-  buffer = g_string_append_c (buffer, '+');
-  buffer = g_string_append (buffer, fastq->name);
-  buffer = g_string_append_c (buffer, '\n');
-
-  fastq->qual[fastq->size - data->end] = '\0';
-  buffer = g_string_append (buffer, fastq->qual + data->start);
-  buffer = g_string_append_c (buffer, '\n');
-
-  g_io_channel_write_chars (data->output_channel,
+  g_io_channel_write_chars (channel,
                             buffer->str,
                             -1,
                             NULL,
