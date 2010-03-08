@@ -14,7 +14,7 @@ typedef struct _CallbackData CallbackData;
 
 struct _CallbackData
 {
-  unsigned long int  qual[40];
+  unsigned long int  qual[N_QUAL];
 
   char              *input_path;
 };

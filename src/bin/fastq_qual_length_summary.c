@@ -114,7 +114,7 @@ iter_func (FastqSeq     *fastq,
   else if (data->current_size < fastq->size)
     {
       data->qual = g_realloc (data->qual, fastq->size * sizeof (*data->qual));
-      data->ns   = g_realloc (data->ns, fastq->size * sizeof (*data->qual));
+      data->ns   = g_realloc (data->ns, fastq->size * sizeof (*data->ns));
       for (i = data->current_size; i < fastq->size; i++)
         {
           data->qual[i] = g_malloc (N_QUAL * sizeof (**data->qual));
