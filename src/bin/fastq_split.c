@@ -147,7 +147,7 @@ iter_func (FastqSeq     *fastq,
   buffer = g_string_append (buffer, fastq->seq + fastq->size / 2);
   buffer = g_string_append_c (buffer, '\n');
 
-  buffer = g_string_append_c (buffer, '@');
+  buffer = g_string_append_c (buffer, '+');
   buffer = g_string_append (buffer, fastq->name);
   buffer = g_string_append_c (buffer, '\n');
   buffer = g_string_append (buffer, fastq->qual + fastq->size / 2);
