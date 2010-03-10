@@ -217,7 +217,7 @@ process_coords (CallbackData *data)
           line[endl] = '\0';
           fields     = g_strsplit_set (line, " \t", 0);
           n_fields   = -1;
-          while (fields[++n_fields]) g_print (">>> %d %s\n", n_fields, fields[n_fields]);
+          while (fields[++n_fields]);
           if (n_fields < 3)
             g_printerr ("[WARNING] Could not parse coordinates line: %s\n", line);
           else
