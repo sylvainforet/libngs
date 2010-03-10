@@ -26,6 +26,7 @@ bin_PROGRAMS = \
 	bsq_empty_regions_content \
 	bsq_methylation_counts \
 	bsq_summary \
+	cg_fetch \
 	cg_merge \
 	cg_meth_count \
 	cg_meth_dist
@@ -104,6 +105,11 @@ bsq_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 bsq_summary_SOURCES = \
 	bsq_summary.c
+
+cg_fetch_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+cg_fetch_SOURCES = \
+	cg_fetch.c
 
 cg_merge_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la

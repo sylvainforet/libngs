@@ -53,80 +53,6 @@ ref_meth_counts_add_path (RefMethCounts *counts,
                           const char    *path,
                           GError       **error)
 {
-#if 0
-  GIOChannel    *channel;
-  SeqDBElement  *elem      = NULL;
-  GError        *tmp_error = NULL;
-  char          *line      = NULL;
-  gsize          length;
-  gsize          endl;
-
-  /* Open */
-  channel = g_io_channel_new_file (path, "r", &tmp_error);
-  if (tmp_error)
-    {
-      g_propagate_error (error, tmp_error);
-      return;
-    }
-
-  /* Parse */
-  while (G_IO_STATUS_NORMAL == g_io_channel_read_line (channel, &line, &length, &endl, &tmp_error))
-    {
-      line[endl] = '\0';
-      if (line[0] == '>')
-        {
-          elem = g_hash_table_lookup (ref->index, line + 1);
-          if (!elem)
-            g_printerr ("[WARNING] Reference `%s' not found\n", line);
-        }
-      else if (elem)
-        {
-          char        **values;
-          int           n_fields;
-          unsigned long offset;
-
-          values = g_strsplit (line, "\t", -1);
-
-          for (n_fields = 0; values[n_fields]; n_fields++);
-          if (n_fields == 3)
-            {
-              offset = g_ascii_strtoll (values[0], NULL, 10);
-              counts->meth_index[elem->offset + offset]->n_meth   += g_ascii_strtoll (values[1], NULL, 10);
-              counts->meth_index[elem->offset + offset]->n_unmeth += g_ascii_strtoll (values[2], NULL, 10);
-            }
-          else if (n_fields == 4)
-            {
-              offset = g_ascii_strtoll (values[1], NULL, 10);
-              counts->meth_index[elem->offset + offset]->n_meth   += g_ascii_strtoll (values[2], NULL, 10);
-              counts->meth_index[elem->offset + offset]->n_unmeth += g_ascii_strtoll (values[3], NULL, 10);
-            }
-          else if (n_fields != 1)
-            g_printerr ("[WARNING] Could not parse meth count line\n");
-
-          g_strfreev (values);
-        }
-      g_free (line);
-      line = NULL;
-    }
-  if (line)
-    g_free (line);
-  if (tmp_error)
-    {
-      g_propagate_error (error, tmp_error);
-      tmp_error = NULL;
-    }
-
-  /* Close */
-  g_io_channel_shutdown (channel, TRUE, &tmp_error);
-  if (tmp_error)
-    {
-      g_printerr ("[WARNING] Closing meth count file `%s' failed: %s\n",
-                  path,
-                  tmp_error->message);
-      g_error_free (tmp_error);
-    }
-  g_io_channel_unref (channel);
-#endif /* 0 */
   GIOChannel    *channel;
   SeqDBElement  *elem      = NULL;
   GError        *tmp_error = NULL;
@@ -260,6 +186,7 @@ ref_meth_counts_write (RefMethCounts *counts,
         }
     }
 
+  /* TODO could use ref_meth_counts_write_segment here */
   g_hash_table_iter_init (&iter, ref->index);
   while (g_hash_table_iter_next (&iter, NULL, (gpointer*)&elem))
     {
@@ -321,6 +248,66 @@ ref_meth_counts_write (RefMethCounts *counts,
         }
     }
   g_io_channel_unref (channel);
+}
+
+void
+ref_meth_counts_write_segment (RefMethCounts *counts,
+                               SeqDB         *ref,
+                               GIOChannel    *channel,
+                               const char    *name,
+                               unsigned long  from,
+                               unsigned long  to,
+                               int            print_letter,
+                               int            print_all,
+                               GError       **error)
+{
+  GError         *tmp_error = NULL;
+  SeqDBElement   *elem;
+  GString        *buffer;
+  MethCount     **ref_meth;
+  unsigned long   i;
+
+  elem = (SeqDBElement*)g_hash_table_lookup (ref->index, name);
+  if (!elem)
+    return;
+  if (from >= elem->size)
+    return;
+  to       = MIN (to, elem->size);
+  ref_meth = counts->meth_index + elem->offset;
+  buffer   = g_string_new (NULL);
+  g_string_printf (buffer, ">%s:%lu-%lu\n", elem->name, from, to);
+  for (i = from; i < to; i++)
+    {
+      if (ref_meth[i])
+        {
+          if (print_letter)
+            g_string_append_printf (buffer,
+                                    "%c\t%ld\t%u\t%u\n",
+                                    ref->seqs[elem->offset + i],
+                                    i,
+                                    ref_meth[i]->n_meth,
+                                    ref_meth[i]->n_unmeth);
+          else
+            g_string_append_printf (buffer,
+                                    "%ld\t%u\t%u\n",
+                                    i,
+                                    ref_meth[i]->n_meth,
+                                    ref_meth[i]->n_unmeth);
+        }
+      else if (print_all)
+        g_string_append_printf (buffer,
+                                "%c\n",
+                                ref->seqs[elem->offset + i]);
+    }
+  g_io_channel_write_chars (channel,
+                            buffer->str,
+                            buffer->len,
+                            NULL,
+                            &tmp_error);
+  g_string_free (buffer, TRUE);
+
+  if (tmp_error)
+    g_propagate_error (error, tmp_error);
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
