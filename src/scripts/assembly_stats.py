@@ -1,7 +1,10 @@
 #!/usr/bin/python
 
+import cStringIO
+
 statsNames = ['name',
-              'n75', 'n50', 'n25',
+              'N75', 'N50', 'N25',
+              'q75', 'q50', 'q25',
               'm0', 'm100', 'm200', 'm400', 'm800', 'm1000', 'm2000', 'm4000',
               's100', 's500', 's1000', 's2000']
 
@@ -15,10 +18,14 @@ def loadAssembly(path):
             continue
         if line[0] == '>':
             name = line
-            seqs[name] = ''
+            seqs[name] = cStringIO.StringIO()
         elif name:
-            seqs[name] += line
+            seqs[name].write(line)
     handle.close()
+    for name in seqs:
+        tmp = seqs[name].getvalue()
+        seqs[name].close()
+        seqs[name] = tmp
     sizes = [len(x) for x in seqs.values()]
     sizes.sort()
     return sizes
@@ -35,13 +42,33 @@ def printHeader(handle):
     header         = '\t'.join(statsNames)
     handle.write(header + '\n')
 
+def getN25_50_75(sizes):
+    total = sum(sizes)
+    tmp   = 0
+    n25   = 0
+    n50   = 0
+    n75   = 0
+    for i in sizes:
+        tmp += i
+        if tmp >= 0.25 * total and not n75:
+            n75 = i
+        if tmp >= 0.50 * total and not n50:
+            n50 = i
+        if tmp >= 0.75 * total and not n25:
+            n25 = i
+    return n25, n50, n75
+
 def printAssemblyStats(sizes, name, handle):
     nContigs       = len(sizes)
     stats          = {}
     stats['name' ] = name
-    stats['n75'  ] = sizes[nContigs / 4]
-    stats['n50'  ] = sizes[nContigs / 2]
-    stats['n25'  ] = sizes[(3 * nContigs) / 4]
+    stats['q75'  ] = sizes[nContigs / 4]
+    stats['q50'  ] = sizes[nContigs / 2]
+    stats['q25'  ] = sizes[(3 * nContigs) / 4]
+    a, b, c        = getN25_50_75(sizes)
+    stats['N25'  ] = a
+    stats['N50'  ] = b
+    stats['N75'  ] = c
     stats['m0'   ] = nContigs
     stats['m100' ] = countLargerThan(sizes, 100)
     stats['m200' ] = countLargerThan(sizes, 200)
