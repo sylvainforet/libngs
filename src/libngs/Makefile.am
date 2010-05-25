@@ -56,7 +56,9 @@ libngs_la_SOURCES = \
 	ngs_methylation.h \
 	ngs_methylation.c \
 	ngs_seq_db.h \
-	ngs_seq_db.c
+	ngs_seq_db.c \
+	ngs_binseq.h \
+	ngs_binseq.c
 
 CLEANFILES = \
 	lex.FlexFasta_.c \
