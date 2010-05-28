@@ -11,16 +11,6 @@
 #define BITS_PER_NUC    2
 #define NUCS_PER_BYTE   (BITS_PER_BYTE / BITS_PER_NUC)
 
-typedef enum
-{
-  NUC_A  = 0,
-  NUC_C  = 1,
-  NUC_G  = 2,
-  NUC_T  = 3,
-  NUC_NB = 4
-}
-Nucleotide;
-
 /**********/
 /* BinSeq */
 /**********/

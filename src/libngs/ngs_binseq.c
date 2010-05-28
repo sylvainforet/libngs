@@ -8,6 +8,16 @@
 #include "ngs_binseq.h"
 
 
+typedef enum
+{
+  NUC_A  = 0,
+  NUC_C  = 1,
+  NUC_G  = 2,
+  NUC_T  = 3,
+  NUC_NB = 4
+}
+Nucleotide;
+
 static char char_to_bin_table[128] =
 {
   ['a'] = NUC_A,
@@ -81,7 +91,7 @@ char_to_bin_prealloc (unsigned char     *dest,
     {
       const unsigned long int address = i / NUCS_PER_BYTE;
       const unsigned int      offset  = (i % NUCS_PER_BYTE) * BITS_PER_NUC;
-      dest[address]                  |= char_to_bin_table[(int)src[i]] << offset;
+      dest[address]                  |= char_to_bin_table[(unsigned int)src[i]] << offset;
     }
   return dest;
 }
