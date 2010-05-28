@@ -56,46 +56,65 @@ bin_seq_free (BinSeq *bin)
     }
 }
 
-char*
+unsigned char*
 char_to_bin (char              *seq,
              unsigned long int  size)
 {
-  char             *new_seq;
-  size_t            byte_size;
-  unsigned long int i;
+  size_t         byte_size;
+  unsigned char *new_seq;
 
   byte_size = (size + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
   new_seq   = g_malloc0 (byte_size);
-
-  for (i = 0; i < size; i++)
-    {
-      const unsigned long int address = i / NUCS_PER_BYTE;
-      const unsigned int      offset  = (i % NUCS_PER_BYTE) * BITS_PER_NUC;
-      new_seq[address]               |= char_to_bin_table[(int)seq[i]] << offset;
-    }
+  new_seq   = char_to_bin_prealloc (new_seq, seq, size);
 
   return new_seq;
 }
 
-char*
-bin_to_char (char              *seq,
-             unsigned long int  size)
+unsigned char*
+char_to_bin_prealloc (unsigned char     *dest,
+                      char              *src,
+                      unsigned long int  size)
 {
-  char             *new_seq;
   unsigned long int i;
-
-  /* '\0' terminated */
-  new_seq = g_malloc0 (size + 1);
 
   for (i = 0; i < size; i++)
     {
       const unsigned long int address = i / NUCS_PER_BYTE;
       const unsigned int      offset  = (i % NUCS_PER_BYTE) * BITS_PER_NUC;
-      const int               val     = (seq[address] >> offset) & 3;
-      new_seq[i]                      = bin_to_char_table[val];
+      dest[address]                  |= char_to_bin_table[(int)src[i]] << offset;
     }
+  return dest;
+}
+
+char*
+bin_to_char (unsigned char     *seq,
+             unsigned long int  size)
+{
+  char *new_seq;
+
+  /* '\0' terminated */
+  new_seq = g_malloc (size + 1);
+  new_seq = bin_to_char_prealloc (new_seq, seq, size);
+  new_seq[size] = '\0';
 
   return new_seq;
+}
+
+char*  
+bin_to_char_prealloc  (char              *dest,
+                       unsigned char     *src,
+                       unsigned long int  size)
+{
+  unsigned long int i;
+
+  for (i = 0; i < size; i++)
+    {
+      const unsigned long int address = i / NUCS_PER_BYTE;
+      const unsigned int      offset  = (i % NUCS_PER_BYTE) * BITS_PER_NUC;
+      const int               val     = (src[address] >> offset) & 3;
+      dest[i]                         = bin_to_char_table[val];
+    }
+  return dest;
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:

@@ -29,7 +29,8 @@ bin_PROGRAMS = \
 	cg_fetch \
 	cg_merge \
 	cg_meth_count \
-	cg_meth_dist
+	cg_meth_dist \
+	kmers_count
 
 fastq2fasta_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
@@ -125,6 +126,11 @@ cg_meth_dist_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 cg_meth_dist_SOURCES = \
 	cg_meth_dist.c
+
+kmers_count_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+kmers_count_SOURCES = \
+	kmers_count.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in

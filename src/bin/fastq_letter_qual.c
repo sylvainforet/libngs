@@ -145,7 +145,7 @@ iter_func (FastqSeq       *fastq,
         }
       if (table)
         {
-          const unsigned int idx = fastq->qual[i] - 64;
+          const unsigned int idx = fastq->qual[i] - FASTQ_QUAL_0;
           if (idx >= N_QUAL)
             g_printerr ("[WARNING] Unknown quality character %c\n",
                         fastq->qual[i]);
@@ -169,7 +169,7 @@ iter_func_fast (FastqSeq       *fastq,
   for (i = 0; i < fastq->size; i++)
     {
       const unsigned int letter = fastq->seq[i];
-      const unsigned int qual   = fastq->qual[i] - 64;
+      const unsigned int qual   = fastq->qual[i] - FASTQ_QUAL_0;
       data->quals[letter][qual]++;
     }
 

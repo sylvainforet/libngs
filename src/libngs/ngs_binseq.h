@@ -30,22 +30,30 @@ typedef struct _BinSeq BinSeq;
 struct _BinSeq
 {
   char              *name;
-  char              *seq;
+  unsigned char     *seq;
   unsigned long int  size; /* Size in nucleotides */
 };
 
 
-BinSeq* bin_seq_new  (char              *name,
-                      char              *seq,
-                      unsigned long int  size);
+BinSeq*          bin_seq_new           (char              *name,
+                                        char              *seq,
+                                        unsigned long int  size);
 
-void    bin_seq_free (BinSeq            *bin);
+void             bin_seq_free          (BinSeq            *bin);
 
-char*   char_to_bin  (char              *seq,
-                      unsigned long int  size);
+unsigned char*   char_to_bin           (char              *seq,
+                                        unsigned long int  size);
 
-char*   bin_to_char  (char              *seq,
-                      unsigned long int  size);
+unsigned char*   char_to_bin_prealloc  (unsigned char     *dest,
+                                        char              *src,
+                                        unsigned long int  size);
+
+char*            bin_to_char           (unsigned char     *seq,
+                                        unsigned long int  size);
+
+char*            bin_to_char_prealloc  (char              *dest,
+                                        unsigned char     *src,
+                                        unsigned long int  size);
 
 #endif /* __NGS_BINSEQ_H__ */
 
