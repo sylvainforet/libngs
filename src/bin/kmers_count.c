@@ -8,53 +8,88 @@
 
 #include "ngs_binseq.h"
 #include "ngs_fasta.h"
+#include "ngs_fastq.h"
+
 
 typedef struct _CallbackData CallbackData;
 
-struct _CallbackData
+typedef int (*IterBinSeqFunc) (CallbackData     *data,
+                               unsigned char    *bin,
+                               unsigned long int size);
+
+static unsigned long int* make_hash_table_k8  (void);
+
+static unsigned long int* make_hash_table_k16 (void);
+
+static int                iter_bin_seq_k8     (CallbackData     *data,
+                                               unsigned char    *bin,
+                                               unsigned long int size);
+
+static int                iter_bin_seq_k16    (CallbackData     *data,
+                                               unsigned char    *bin,
+                                               unsigned long int size);
+
+static void               print_results_k8    (CallbackData     *data);
+
+static void               print_results_k16   (CallbackData     *data);
+
+typedef struct _BinSeqHashNode BinSeqHashNode;
+
+struct _BinSeqHashNode
 {
-  char          *input_path;
-
-  GHashTable    *htable;
-  GArray        *keys;
-  GArray        *values;
-  unsigned char *tmp_key;
-
-  unsigned int   bin_kmer_bytes;
-  int            k;
+  unsigned char    *word;
+  unsigned long int n;
 };
 
-/* For use in the general-purpose comparison function */
-static size_t bin_kmer_bytes;
+static BinSeqHashNode* bin_seq_hash_node_new   (void);
 
-static void parse_args (CallbackData      *data,
-                        int               *argc,
-                        char            ***argv);
+static void            bin_seq_hash_node_free  (BinSeqHashNode      *hnode);
 
-static int  iter_func  (FastaSeq          *fasta,
-                        CallbackData      *data);
+static void            bin_seq_hash_node_print (unsigned char       *key,
+                                                BinSeqHashNode      *node,
+                                                CallbackData        *data);
 
-static unsigned int bin_seq_hash_8   (const void *key);
-static unsigned int bin_seq_hash_16  (const void *key);
-static unsigned int bin_seq_hash_32  (const void *key);
-static unsigned int bin_seq_hash_64  (const void *key);
-static unsigned int bin_seq_hash_xx  (const void *key);
+static unsigned int    bin_seq_hash            (const unsigned char *bin);
 
-static int          bin_seq_equal_8  (const void *a,
-                                      const void *b);
-static int          bin_seq_equal_16 (const void *a,
-                                      const void *b);
-static int          bin_seq_equal_32 (const void *a,
-                                      const void *b);
-static int          bin_seq_equal_64 (const void *a,
-                                      const void *b);
-static int          bin_seq_equal_xx (const void *a,
-                                      const void *b);
+static int             bin_seq_equal           (const unsigned char *bin1,
+                                                const unsigned char *bin2);
 
-/*
-static int          compare_int      (const void *a,
-                                      const void *b);
-                                      */
+static int             iter_char_seq_kx        (CallbackData        *data,
+                                                const char          *seq,
+                                                unsigned long int    size);
+
+static void            print_results_kx        (CallbackData        *data);
+
+static unsigned int kmer_size;
+static unsigned int kmer_bytes;
+
+struct _CallbackData
+{
+  char              *input_path;
+
+  IterBinSeqFunc     iter_bin_func;
+
+  GHashTable        *htable;
+  GStringChunk      *kwords;
+  unsigned char     *tmp_word;
+  char              *tmp_str;
+
+  unsigned long int *harray;
+  unsigned int       k;
+  unsigned int       k_bytes;
+  int                is_fastq;
+  int                fast;
+};
+
+static void parse_args       (CallbackData      *data,
+                              int               *argc,
+                              char            ***argv);
+
+static int  iter_func_fasta  (FastaSeq          *fasta,
+                              CallbackData      *data);
+
+static int  iter_func_fastq  (FastqSeq          *fasta,
+                              CallbackData      *data);
 
 int
 main (int    argc,
@@ -62,14 +97,29 @@ main (int    argc,
 {
   CallbackData  data;
   GError       *error = NULL;
-  unsigned int  i;
 
   parse_args (&data, &argc, &argv);
 
-  iter_fasta (data.input_path,
-              (FastaIterFunc)iter_func,
-              &data,
-              &error);
+  if (data.is_fastq)
+    iter_fastq (data.input_path,
+                (FastqIterFunc)iter_func_fastq,
+                &data,
+                &error);
+  else
+    iter_fasta (data.input_path,
+                (FastaIterFunc)iter_func_fasta,
+                &data,
+                &error);
+
+  if (data.fast)
+    {
+      if (data.k == 8)
+        print_results_k8 (&data);
+      else if (data.k == 16)
+        print_results_k16 (&data);
+    }
+  else
+    print_results_kx (&data);
 
   if (error)
     {
@@ -78,17 +128,16 @@ main (int    argc,
       error = NULL;
       return 1;
     }
-  for (i = 0; i < data.values->len; i++)
-    {
-      char *tmp = bin_to_char ((unsigned char*)data.keys->data + data.bin_kmer_bytes * i, data.k);
-      g_print ("%s %d\n", tmp, g_array_index (data.values, int, i));
-      g_free (tmp);
-    }
-
-  g_hash_table_destroy (data.htable);
-  g_array_free (data.keys, TRUE);
-  g_array_free (data.values, TRUE);
-  g_free (data.tmp_key);
+  if (data.harray)
+    g_free (data.harray);
+  if (data.htable)
+    g_hash_table_destroy (data.htable);
+  if (data.kwords)
+    g_string_chunk_free (data.kwords);
+  if (data.tmp_word)
+    g_free (data.tmp_word);
+  if (data.tmp_str)
+    g_free (data.tmp_str);
 
   return 0;
 }
@@ -100,18 +149,26 @@ parse_args (CallbackData      *data,
 {
   GOptionEntry entries[] =
     {
-      {"kmer", 'k', 0, G_OPTION_ARG_INT, &data->k, "K-mer size", NULL},
+      {"kmer",  'k', 0, G_OPTION_ARG_INT,   &data->k,        "K-mer size",               NULL},
+      {"fastq", 'q', 0, G_OPTION_ARG_NONE,  &data->is_fastq, "Input is in fastq format", NULL},
+      {"fast",  'f', 0, G_OPTION_ARG_NONE,  &data->fast,     "Use optimisations if available", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
-  GHashFunc       hash_func;
-  GEqualFunc      equal_func;
 
-  data->k = 8;
+  data->k          = 0;
+  data->is_fastq   = 0;
+  data->fast       = 0;
+  data->harray     = NULL;
+  data->htable     = NULL;
+  data->tmp_word   = NULL;
+  data->tmp_str    = NULL;
+  data->kwords     = NULL;
 
   context = g_option_context_new ("FILE - Count the number of kmers in a fasta file");
   g_option_context_add_group (context, get_fasta_option_group ());
+  g_option_context_add_group (context, get_fastq_option_group ());
   g_option_context_add_main_entries (context, entries, NULL);
   if (!g_option_context_parse (context, argc, argv, &error))
     {
@@ -125,172 +182,306 @@ parse_args (CallbackData      *data,
       g_printerr ("[ERROR] No input file provided\n");
       exit (1);
     }
+
   if (data->k < 1)
     {
       g_printerr ("[ERROR] The kmer size must be larger than 0\n");
       exit (1);
     }
-  else if (data->k <= 4)
-    {
-      hash_func  = bin_seq_hash_8;
-      equal_func = bin_seq_equal_8;
-    }
-  else if (data->k <= 8)
-    {
-      hash_func  = bin_seq_hash_16;
-      equal_func = bin_seq_equal_16;
-    }
-  else if (data->k <= 16)
-    {
-      hash_func  = bin_seq_hash_32;
-      equal_func = bin_seq_equal_32;
-    }
-  else if (data->k <= 32)
-    {
-      hash_func  = bin_seq_hash_64;
-      equal_func = bin_seq_equal_64;
-    }
-  else
-    {
-      hash_func  = bin_seq_hash_xx;
-      equal_func = bin_seq_equal_xx;
-    }
-  data->input_path      = (*argv)[1];
-  data->htable          = g_hash_table_new (hash_func, equal_func);
-  data->bin_kmer_bytes  = (data->k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
-  data->tmp_key         = g_malloc0 (data->bin_kmer_bytes);
-  data->keys            = g_array_new (FALSE, FALSE, data->bin_kmer_bytes);
-  data->values          = g_array_new (FALSE, FALSE, sizeof (int));
-  bin_kmer_bytes        = data->bin_kmer_bytes;
-}
 
-static int
-iter_func (FastaSeq     *fasta,
-           CallbackData *data)
-{
-  const unsigned long int maxi = fasta->size - data->k + 1;
-  unsigned long int       i;
-
-  for (i = 0; i < maxi; i++)
+  data->k_bytes = (data->k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
+  if (data->fast)
     {
-      gpointer     val = NULL;
-      gpointer     orig_key = NULL;
-      unsigned int j;
-
-      /* Clear the key */
-      for (j = 0; j < data->bin_kmer_bytes; j++)
-        data->tmp_key[j] = 0;
-
-      /* TODO handle sequences with Ns */
-      char_to_bin_prealloc (data->tmp_key, fasta->seq + i, data->k);
-      if (g_hash_table_lookup_extended (data->htable, data->tmp_key, &orig_key, &val))
+      if (data->k == 8)
         {
-          /*
-          for (j = 0; j < data->values->len; j++)
-            g_print ("%d ", g_array_index (data->values, int, j));
-          g_print ("\n");
-
-          g_print (">>> %ld %s %d %p\n", i, bin_to_char (orig_key, data->k), *((int*)val), val);
-          */
-          g_array_index (data->values, int, GPOINTER_TO_INT (val))++;
+          data->iter_bin_func = iter_bin_seq_k8;
+          data->harray        = make_hash_table_k8 ();
+        }
+      else if (data->k == 16)
+        {
+          data->iter_bin_func = iter_bin_seq_k16;
+          data->harray        = make_hash_table_k16 ();
         }
       else
         {
-          int new_val = 1;
+          g_printerr ("[ERROR] No optimised functions available for k=%d\n", data->k);
+          exit (1);
+        }
+    }
+  else
+    {
+      data->iter_bin_func = NULL;
+      data->htable        = g_hash_table_new_full ((GHashFunc)bin_seq_hash,
+                                                   (GEqualFunc)bin_seq_equal,
+                                                   NULL,
+                                                   (GDestroyNotify)bin_seq_hash_node_free);
+      data->kwords           = g_string_chunk_new (data->k_bytes);
+      kmer_size              = data->k;
+      kmer_bytes             = data->k_bytes;
+      data->tmp_word         = g_malloc (data->k_bytes);
+      data->tmp_str          = g_malloc (data->k + 1);
+      data->tmp_str[data->k] = '\0';
+    }
+  data->input_path = (*argv)[1];
+}
 
-          data->keys   = g_array_append_vals (data->keys, data->tmp_key, 1);
-          data->values = g_array_append_vals (data->values, &new_val, 1);
-          g_hash_table_insert (data->htable,
-                               data->keys->data   + (data->keys->len   - 1) * data->bin_kmer_bytes,
-                               GINT_TO_POINTER (data->values->len - 1));
+static int
+iter_func_fasta (FastaSeq     *fasta,
+                 CallbackData *data)
+{
+  unsigned char *bin;
 
-          /*
-          for (j = 0; j < data->values->len; j++)
-            g_print ("%d ", g_array_index (data->values, int, j));
-          g_print ("\n");
+  if (data->iter_bin_func)
+    {
+      bin = char_to_bin (fasta->seq, fasta->size);
+      data->iter_bin_func (data, bin, fasta->size);
+      g_free (bin);
+    }
+  else
+    iter_char_seq_kx (data, fasta->seq, fasta->size);
 
-          g_print (">>> --- %ld %s %d\n", i,
-                   bin_to_char ((unsigned char*)data->keys->data + (data->keys->len - 1) * data->bin_kmer_bytes, data->k),
-                   *(int*)(data->values->data + (data->values->len - 1) * sizeof (int)));
-          */
+  return 1;
+}
+
+static int
+iter_func_fastq (FastqSeq     *fastq,
+                 CallbackData *data)
+{
+  unsigned char *bin;
+
+  if (data->iter_bin_func)
+    {
+      bin = char_to_bin (fastq->seq, fastq->size);
+      data->iter_bin_func (data, bin, fastq->size);
+      g_free (bin);
+    }
+  else
+    iter_char_seq_kx (data, fastq->seq, fastq->size);
+
+  return 1;
+}
+
+static unsigned long int*
+make_hash_table_k8 (void)
+{
+  unsigned long int *count_array;
+
+  count_array = g_malloc0 ((1 << 16) * sizeof (*count_array));
+
+  return count_array;
+}
+
+static unsigned long int*
+make_hash_table_k16 (void)
+{
+  unsigned long int *count_array;
+
+  count_array = g_malloc0 ((1L << 32) * sizeof (*count_array));
+
+  return count_array;
+}
+
+static int
+iter_char_seq_kx (CallbackData     *data,
+                  const char       *seq,
+                  unsigned long int size)
+{
+  unsigned long int       i;
+  const unsigned long int maxi = size - data->k + 1;
+
+  if (size < data->k)
+    return 1;
+
+  for (i = 0; i < maxi; i++)
+    {
+      BinSeqHashNode *hnode;
+      unsigned int    j;
+
+      for (j = 0; j < data->k; j++)
+        data->tmp_word[j] = 0;
+
+      data->tmp_word = char_to_bin_prealloc (data->tmp_word, seq + i, data->k);
+      if (g_hash_table_lookup_extended (data->htable, data->tmp_word, NULL, (gpointer*)&hnode))
+        hnode->n++;
+      else
+        {
+          hnode       = bin_seq_hash_node_new ();
+          hnode->n    = 1;
+          hnode->word = (unsigned char*)g_string_chunk_insert_len (data->kwords,
+                                                                   (char*)data->tmp_word,
+                                                                   data->k_bytes);
+          g_hash_table_insert (data->htable, hnode->word, hnode);
         }
     }
   return 1;
 }
 
+static int
+iter_bin_seq_k8 (CallbackData     *data,
+                 unsigned char    *bin,
+                 unsigned long int size)
+{
+  unsigned long int i;
+  guint16           word;
+
+  if (size < 8)
+    return 1;
+  
+  word   = bin[1];
+  word <<= 8;
+  word  |= bin[0];
+  data->harray[word]++;
+  for (i = 8; i < size; i++)
+    {
+      unsigned long int address;
+      unsigned int      offset;
+
+      word  >>= BITS_PER_NUC;
+      address = i / NUCS_PER_BYTE;
+      offset  = (i % NUCS_PER_BYTE) * BITS_PER_NUC;
+      word   |= ((bin[address] >> offset) & 3) << 14;
+      data->harray[word]++;
+    }
+
+  return 1;
+}
+
+static int
+iter_bin_seq_k16 (CallbackData     *data,
+                  unsigned char    *bin,
+                  unsigned long int size)
+{
+  unsigned long int i;
+  guint32           word;
+
+  if (size < 16)
+    return 1;
+  
+  word   = bin[3];
+  word <<= 8;
+  word  |= bin[2];
+  word <<= 8;
+  word  |= bin[1];
+  word <<= 8;
+  word  |= bin[0];
+  data->harray[word]++;
+  for (i = 16; i < size; i++)
+    {
+      unsigned long int address;
+      unsigned int      offset;
+
+      word  >>= BITS_PER_NUC;
+      address = i / NUCS_PER_BYTE;
+      offset  = (i % NUCS_PER_BYTE) * BITS_PER_NUC;
+      word   |= ((bin[address] >> offset) & 3) << 30;
+      data->harray[word]++;
+    }
+
+  return 1;
+}
+
+static void
+print_results_k8 (CallbackData *data)
+{
+  unsigned int  i;
+  unsigned char bin_buf[2];
+  char          char_buf[9];
+
+  char_buf[8] = '\0';
+  for (i = 0; i < (1 << 16); i++)
+    {
+      if (!data->harray[i])
+        continue;
+      bin_buf[0] = (i & 255);
+      bin_buf[1] = (i >> 8);
+      bin_to_char_prealloc (char_buf, bin_buf, 8);
+      g_print ("%s %ld\n", char_buf, data->harray[i]);
+    }
+}
+
+static void
+print_results_k16 (CallbackData *data)
+{
+  unsigned int  i;
+  unsigned char bin_buf[4];
+  char          char_buf[17];
+
+  char_buf[16] = '\0';
+  for (i = 0; i < (1L << 32); i++)
+    {
+      if (!data->harray[i])
+        continue;
+      bin_buf[0] = (i & 255);
+      bin_buf[1] = (i >> 8) & 255;
+      bin_buf[2] = (i >> 16) & 255;
+      bin_buf[3] = (i >> 24);
+      bin_to_char_prealloc (char_buf, bin_buf, 16);
+      g_print ("%s %ld\n", char_buf, data->harray[i]);
+    }
+}
+
+static void
+print_results_kx (CallbackData *data)
+{
+  g_hash_table_foreach (data->htable, (GHFunc)bin_seq_hash_node_print, data);
+}
+
+static BinSeqHashNode*
+bin_seq_hash_node_new (void)
+{
+  BinSeqHashNode *hnode;
+
+  hnode = g_slice_new0 (BinSeqHashNode);
+
+  return hnode;
+}
+
+static void
+bin_seq_hash_node_free (BinSeqHashNode *hnode)
+{
+  if (hnode)
+    g_slice_free (BinSeqHashNode, hnode);
+}
+
 static unsigned int
-bin_seq_hash_8 (const void *key)
+bin_seq_hash (const unsigned char *bin)
 {
-  return *(guint8*)key;
-}
+  guint32      h = 0;
+  unsigned int i;
 
-static unsigned int
-bin_seq_hash_16 (const void *key)
-{
-  return *(guint16*)key;
-}
-
-static unsigned int
-bin_seq_hash_32 (const void *key)
-{
-  return *(guint32*)key;
-}
-
-static unsigned int
-bin_seq_hash_64 (const void *key)
-{
-  return *(guint32*)key;
-}
-
-static unsigned int
-bin_seq_hash_xx (const void *key)
-{
-  return *(guint32*)key;
+  for (i = 0; i < kmer_bytes && i < 4; i++)
+    {
+      h <<= 8;
+      h  |= bin[i];
+      /*  This has one extra instruction, but keeps the first letters in the
+       *  low bits
+      h >>= 8;
+      h |= bin[i] << 24;
+      */
+    }
+  return h;
 }
 
 static int
-bin_seq_equal_8 (const void *a,
-                 const void *b)
+bin_seq_equal (const unsigned char *bin1,
+               const unsigned char *bin2)
 {
-  return ((*(guint8*)a) - (*(guint8*)b)) == 0;
+  unsigned int i;
+
+  for (i = 0 ; i < kmer_bytes; i++)
+    if (bin1[i] != bin2[i])
+      return 0;
+  return 1;
 }
 
-static int
-bin_seq_equal_16 (const void *a,
-                  const void *b)
+static void
+bin_seq_hash_node_print (unsigned char       *key,
+                         BinSeqHashNode      *node,
+                         CallbackData        *data)
 {
-  return ((*(guint16*)a) - (*(guint16*)b)) == 0;
+  data->tmp_str = bin_to_char_prealloc (data->tmp_str, key, data->k);
+  g_print ("%s %ld\n", data->tmp_str, node->n);
 }
-
-static int
-bin_seq_equal_32 (const void *a,
-                  const void *b)
-{
-  return ((*(guint32*)a) - (*(guint32*)b)) == 0;
-}
-
-static int
-bin_seq_equal_64 (const void *a,
-                  const void *b)
-{
-  return ((*(guint64*)a) - (*(guint64*)b)) == 0;
-}
-
-static int
-bin_seq_equal_xx (const void *a,
-                  const void *b)
-{
-  return memcmp (a, b, bin_kmer_bytes) == 0;
-}
-
-/*
-static int
-compare_int (const void *a,
-             const void *b)
-{
-  return (*(int*)a) - (*(int*)b);
-}
-*/
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */
