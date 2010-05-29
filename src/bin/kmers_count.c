@@ -75,10 +75,14 @@ struct _CallbackData
   char              *tmp_str;
 
   unsigned long int *harray;
+
+  unsigned long int  n_seqs;
+  unsigned long int  freq_report;
   unsigned int       k;
   unsigned int       k_bytes;
   int                is_fastq;
   int                fast;
+  int                verbose;
 };
 
 static void parse_args       (CallbackData      *data,
@@ -149,22 +153,27 @@ parse_args (CallbackData      *data,
 {
   GOptionEntry entries[] =
     {
-      {"kmer",  'k', 0, G_OPTION_ARG_INT,   &data->k,        "K-mer size",               NULL},
-      {"fastq", 'q', 0, G_OPTION_ARG_NONE,  &data->is_fastq, "Input is in fastq format", NULL},
-      {"fast",  'f', 0, G_OPTION_ARG_NONE,  &data->fast,     "Use optimisations if available", NULL},
+      {"kmer",     'k', 0, G_OPTION_ARG_INT,   &data->k,           "K-mer size", NULL},
+      {"rep-freq", 'r', 0, G_OPTION_ARG_INT,   &data->freq_report, "Verbose-report frequency", NULL},
+      {"fastq",    'q', 0, G_OPTION_ARG_NONE,  &data->is_fastq,    "Input is in fastq format", NULL},
+      {"fast",     'f', 0, G_OPTION_ARG_NONE,  &data->fast,        "Use optimisations if available", NULL},
+      {"verbose",  'v', 0, G_OPTION_ARG_NONE,  &data->verbose,     "Verbose output", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->k          = 0;
-  data->is_fastq   = 0;
-  data->fast       = 0;
-  data->harray     = NULL;
-  data->htable     = NULL;
-  data->tmp_word   = NULL;
-  data->tmp_str    = NULL;
-  data->kwords     = NULL;
+  data->k           = 0;
+  data->is_fastq    = 0;
+  data->fast        = 0;
+  data->verbose     = 0;
+  data->n_seqs      = 0;
+  data->freq_report = 1000000;
+  data->harray      = NULL;
+  data->htable      = NULL;
+  data->tmp_word    = NULL;
+  data->tmp_str     = NULL;
+  data->kwords      = NULL;
 
   context = g_option_context_new ("FILE - Count the number of kmers in a fasta file");
   g_option_context_add_group (context, get_fasta_option_group ());
@@ -239,6 +248,9 @@ iter_func_fasta (FastaSeq     *fasta,
     }
   else
     iter_char_seq_kx (data, fasta->seq, fasta->size);
+  data->n_seqs++;
+  if (data->n_seqs % data->freq_report == 0)
+    g_printerr ("Parsed %ld sequences\n", data->n_seqs);
 
   return 1;
 }
