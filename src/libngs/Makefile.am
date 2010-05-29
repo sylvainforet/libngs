@@ -58,7 +58,8 @@ libngs_la_SOURCES = \
 	ngs_seq_db.h \
 	ngs_seq_db.c \
 	ngs_binseq.h \
-	ngs_binseq.c
+	ngs_binseq.c \
+	ngs_binseq_tables.c
 
 CLEANFILES = \
 	lex.FlexFasta_.c \
