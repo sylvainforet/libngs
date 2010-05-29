@@ -249,7 +249,7 @@ iter_func_fasta (FastaSeq     *fasta,
   else
     iter_char_seq_kx (data, fasta->seq, fasta->size);
   data->n_seqs++;
-  if (data->n_seqs % data->freq_report == 0)
+  if (data->verbose && data->n_seqs % data->freq_report == 0)
     g_printerr ("Parsed %ld sequences\n", data->n_seqs);
 
   return 1;
@@ -269,6 +269,9 @@ iter_func_fastq (FastqSeq     *fastq,
     }
   else
     iter_char_seq_kx (data, fastq->seq, fastq->size);
+  data->n_seqs++;
+  if (data->verbose && data->n_seqs % data->freq_report == 0)
+    g_printerr ("Parsed %ld sequences\n", data->n_seqs);
 
   return 1;
 }
