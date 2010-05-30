@@ -9,6 +9,7 @@
 #include "ngs_binseq.h"
 #include "ngs_fasta.h"
 #include "ngs_fastq.h"
+#include "ngs_utils.h"
 
 
 typedef struct _CallbackData CallbackData;
@@ -93,6 +94,10 @@ static int  iter_func_fasta  (FastaSeq          *fasta,
                               CallbackData      *data);
 
 static int  iter_func_fastq  (FastqSeq          *fasta,
+                              CallbackData      *data);
+
+static int  iter_func_char   (char              *seq,
+                              unsigned long int  size,
                               CallbackData      *data);
 
 int
@@ -235,45 +240,50 @@ parse_args (CallbackData      *data,
 }
 
 static int
-iter_func_fasta (FastaSeq     *fasta,
-                 CallbackData *data)
+iter_func_char (char              *seq,
+                unsigned long int  size,
+                CallbackData      *data)
 {
   unsigned char *bin;
+  int            ret;
 
   if (data->iter_bin_func)
     {
-      bin = char_to_bin (fasta->seq, fasta->size);
-      data->iter_bin_func (data, bin, fasta->size);
+      bin = char_to_bin (seq, size);
+      ret = data->iter_bin_func (data, bin, size);
+      g_free (bin);
+      if (ret != 1)
+        return ret;
+      bin = char_to_bin (rev_comp_in_place (seq, size), size);
+      ret = data->iter_bin_func (data, bin, size);
       g_free (bin);
     }
   else
-    iter_char_seq_kx (data, fasta->seq, fasta->size);
+    {
+      ret = iter_char_seq_kx (data, seq, size);
+      if (ret != 1)
+        return ret;
+      ret = iter_char_seq_kx (data, rev_comp_in_place (seq, size), size);
+    }
   data->n_seqs++;
   if (data->verbose && data->n_seqs % data->freq_report == 0)
     g_printerr ("Parsed %ld sequences\n", data->n_seqs);
 
-  return 1;
+  return ret;
+}
+
+static int
+iter_func_fasta (FastaSeq     *fasta,
+                 CallbackData *data)
+{
+  return iter_func_char (fasta->seq, fasta->size, data);
 }
 
 static int
 iter_func_fastq (FastqSeq     *fastq,
                  CallbackData *data)
 {
-  unsigned char *bin;
-
-  if (data->iter_bin_func)
-    {
-      bin = char_to_bin (fastq->seq, fastq->size);
-      data->iter_bin_func (data, bin, fastq->size);
-      g_free (bin);
-    }
-  else
-    iter_char_seq_kx (data, fastq->seq, fastq->size);
-  data->n_seqs++;
-  if (data->verbose && data->n_seqs % data->freq_report == 0)
-    g_printerr ("Parsed %ld sequences\n", data->n_seqs);
-
-  return 1;
+  return iter_func_char (fastq->seq, fastq->size, data);
 }
 
 static unsigned long int*
@@ -302,17 +312,56 @@ iter_char_seq_kx (CallbackData     *data,
                   unsigned long int size)
 {
   unsigned long int       i;
+  unsigned long int       j;
+  unsigned long int       k;
   const unsigned long int maxi = size - data->k + 1;
 
   if (size < data->k)
     return 1;
 
-  for (i = 0; i < maxi; i++)
+  /* Find the first index of a kmer without Ns */
+  for (j = 0, k = 0; j < size; j++)
+    {
+      if (seq[j] == 'N' || seq[j] == 'n')
+        k = 0;
+      else
+        k++;
+      if (k == data->k)
+        {
+          j++;
+          break;
+        }
+    }
+  if (k < data->k)
+    return 1;
+
+  for (i = j - k; i < maxi; i++)
     {
       BinSeqHashNode *hnode;
-      unsigned int    j;
+      char            c;
 
-      for (j = 0; j < data->k; j++)
+      c = seq[i + data->k - 1];
+      if (c == 'N' || c == 'n')
+        {
+          k = 0;
+          for (j = i + data->k; j < size; j++)
+            {
+              if (seq[j] == 'N' || seq[j] == 'n')
+                k = 0;
+              else
+                k++;
+              if (k == data->k)
+                {
+                  j++;
+                  break;
+                }
+            }
+          if (k < data->k)
+            return 1;
+          i = j - k;
+        }
+
+      for (j = 0; j < data->k_bytes; j++)
         data->tmp_word[j] = 0;
 
       data->tmp_word = char_to_bin_prealloc (data->tmp_word, seq + i, data->k);
@@ -331,6 +380,7 @@ iter_char_seq_kx (CallbackData     *data,
   return 1;
 }
 
+/* FIXME this does not handle Ns */
 static int
 iter_bin_seq_k8 (CallbackData     *data,
                  unsigned char    *bin,
@@ -361,6 +411,7 @@ iter_bin_seq_k8 (CallbackData     *data,
   return 1;
 }
 
+/* FIXME this does not handle Ns */
 static int
 iter_bin_seq_k16 (CallbackData     *data,
                   unsigned char    *bin,
@@ -494,7 +545,7 @@ bin_seq_hash_node_print (unsigned char       *key,
                          BinSeqHashNode      *node,
                          CallbackData        *data)
 {
-  data->tmp_str = bin_to_char_prealloc (data->tmp_str, key, data->k);
+  data->tmp_str = bin_to_char_prealloc (data->tmp_str, node->word, data->k);
   g_print ("%s %ld\n", data->tmp_str, node->n);
 }
 
