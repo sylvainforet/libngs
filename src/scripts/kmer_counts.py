@@ -44,7 +44,7 @@ def getKmerCounts(k, path):
         handle.close()
     return kmers
 
-def printKmerCounts(kmers, path):
+def printKmerCountsSorted(kmers, path):
     logging.debug('Writing kmer counts to %s' % path)
     handle = sys.stdout
     if path != '-':
@@ -55,6 +55,17 @@ def printKmerCounts(kmers, path):
     kmerKeys.sort()
     logging.debug('Writting Keys')
     for i in kmerKeys:
+        handle.write('%s %d\n' % (i, kmers[i]))
+    if path != '-':
+        handle.close()
+
+def printKmerCounts(kmers, path):
+    logging.debug('Writing kmer counts to %s' % path)
+    handle = sys.stdout
+    if path != '-':
+        handle = open(path)
+    logging.debug('Writting Keys')
+    for i in kmers:
         handle.write('%s %d\n' % (i, kmers[i]))
     if path != '-':
         handle.close()

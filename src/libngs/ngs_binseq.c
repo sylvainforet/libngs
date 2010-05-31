@@ -18,7 +18,7 @@ typedef enum
 }
 Nucleotide;
 
-static unsigned char char_to_bin_table[128] =
+unsigned char char_to_bin_table[128] =
 {
   ['a'] = NUC_A,
   ['c'] = NUC_C,
