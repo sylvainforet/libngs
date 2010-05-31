@@ -67,6 +67,8 @@ static unsigned int kmer_bytes;
 struct _CallbackData
 {
   char              *input_path;
+  char              *output_path;
+  GIOChannel        *output_channel;
 
   IterBinSeqFunc     iter_bin_func;
 
@@ -81,7 +83,9 @@ struct _CallbackData
   unsigned long int  freq_report;
   unsigned int       k;
   unsigned int       k_bytes;
+  int                do_revcomp;
   int                is_fastq;
+  int                bin_out;
   int                fast;
   int                verbose;
 };
@@ -120,15 +124,7 @@ main (int    argc,
                 &data,
                 &error);
 
-  if (data.fast)
-    {
-      if (data.k == 8)
-        print_results_k8 (&data);
-      else if (data.k == 16)
-        print_results_k16 (&data);
-    }
-  else
-    print_results_kx (&data);
+  print_results_kx (&data);
 
   if (error)
     {
@@ -147,6 +143,8 @@ main (int    argc,
     g_free (data.tmp_word);
   if (data.tmp_str)
     g_free (data.tmp_str);
+  if (data.output_path)
+    g_free (data.output_path);
 
   return 0;
 }
@@ -158,22 +156,28 @@ parse_args (CallbackData      *data,
 {
   GOptionEntry entries[] =
     {
-      {"kmer",     'k', 0, G_OPTION_ARG_INT,   &data->k,           "K-mer size", NULL},
-      {"rep-freq", 'r', 0, G_OPTION_ARG_INT,   &data->freq_report, "Verbose-report frequency", NULL},
-      {"fastq",    'q', 0, G_OPTION_ARG_NONE,  &data->is_fastq,    "Input is in fastq format", NULL},
-      {"fast",     'f', 0, G_OPTION_ARG_NONE,  &data->fast,        "Use optimisations if available", NULL},
-      {"verbose",  'v', 0, G_OPTION_ARG_NONE,  &data->verbose,     "Verbose output", NULL},
+      {"out",      'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output file", NULL},
+      {"kmer",     'k', 0, G_OPTION_ARG_INT,      &data->k,           "K-mer size", NULL},
+      {"freqrep",  'e', 0, G_OPTION_ARG_INT,      &data->freq_report, "Verbose-report frequency", NULL},
+      {"revcomp",  'r', 0, G_OPTION_ARG_NONE,     &data->do_revcomp,  "Also scan the reverse complement", NULL},
+      {"fastq",    'q', 0, G_OPTION_ARG_NONE,     &data->is_fastq,    "Input is in fastq format", NULL},
+      {"binout",   'b', 0, G_OPTION_ARG_NONE,     &data->bin_out,     "Write output in binary format", NULL},
+      {"fast",     'f', 0, G_OPTION_ARG_NONE,     &data->fast,        "Use optimisations if available", NULL},
+      {"verbose",  'v', 0, G_OPTION_ARG_NONE,     &data->verbose,     "Verbose output", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
 
   data->k           = 0;
+  data->do_revcomp  = 0;
   data->is_fastq    = 0;
+  data->bin_out     = 0;
   data->fast        = 0;
   data->verbose     = 0;
   data->n_seqs      = 0;
   data->freq_report = 1000000;
+  data->output_path = strdup("-");
   data->harray      = NULL;
   data->htable      = NULL;
   data->tmp_word    = NULL;
@@ -224,11 +228,11 @@ parse_args (CallbackData      *data,
     }
   else
     {
-      data->iter_bin_func = NULL;
-      data->htable        = g_hash_table_new_full ((GHashFunc)bin_seq_hash,
-                                                   (GEqualFunc)bin_seq_equal,
-                                                   NULL,
-                                                   (GDestroyNotify)bin_seq_hash_node_free);
+      data->iter_bin_func    = NULL;
+      data->htable           = g_hash_table_new_full ((GHashFunc)bin_seq_hash,
+                                                      (GEqualFunc)bin_seq_equal,
+                                                      NULL,
+                                                      (GDestroyNotify)bin_seq_hash_node_free);
       data->kwords           = g_string_chunk_new (data->k_bytes);
       kmer_size              = data->k;
       kmer_bytes             = data->k_bytes;
@@ -254,16 +258,20 @@ iter_func_char (char              *seq,
       g_free (bin);
       if (ret != 1)
         return ret;
-      bin = char_to_bin (rev_comp_in_place (seq, size), size);
-      ret = data->iter_bin_func (data, bin, size);
-      g_free (bin);
+      if (data->do_revcomp)
+        {
+          bin = char_to_bin (rev_comp_in_place (seq, size), size);
+          ret = data->iter_bin_func (data, bin, size);
+          g_free (bin);
+        }
     }
   else
     {
       ret = iter_char_seq_kx (data, seq, size);
       if (ret != 1)
         return ret;
-      ret = iter_char_seq_kx (data, rev_comp_in_place (seq, size), size);
+      if (data->do_revcomp)
+        ret = iter_char_seq_kx (data, rev_comp_in_place (seq, size), size);
     }
   data->n_seqs++;
   if (data->verbose && data->n_seqs % data->freq_report == 0)
@@ -449,30 +457,30 @@ iter_bin_seq_k16 (CallbackData     *data,
 static void
 print_results_k8 (CallbackData *data)
 {
-  unsigned int  i;
-  unsigned char bin_buf[2];
-  char          char_buf[9];
+  unsigned char  bin_buf[2];
+  BinSeqHashNode hnode;
+  unsigned int   i;
 
-  char_buf[8] = '\0';
   for (i = 0; i < (1 << 16); i++)
     {
       if (!data->harray[i])
         continue;
       bin_buf[0] = (i & 255);
       bin_buf[1] = (i >> 8);
-      bin_to_char_prealloc (char_buf, bin_buf, 8);
-      g_print ("%s %ld\n", char_buf, data->harray[i]);
+
+      hnode.word = bin_buf;
+      hnode.n    = data->harray[i];
+      bin_seq_hash_node_print (bin_buf, &hnode, data);
     }
 }
 
 static void
 print_results_k16 (CallbackData *data)
 {
+  unsigned char  bin_buf[4];
+  BinSeqHashNode hnode;
   unsigned int  i;
-  unsigned char bin_buf[4];
-  char          char_buf[17];
 
-  char_buf[16] = '\0';
   for (i = 0; i < (1L << 32); i++)
     {
       if (!data->harray[i])
@@ -481,15 +489,60 @@ print_results_k16 (CallbackData *data)
       bin_buf[1] = (i >> 8) & 255;
       bin_buf[2] = (i >> 16) & 255;
       bin_buf[3] = (i >> 24);
-      bin_to_char_prealloc (char_buf, bin_buf, 16);
-      g_print ("%s %ld\n", char_buf, data->harray[i]);
+
+      hnode.word = bin_buf;
+      hnode.n    = data->harray[i];
+      bin_seq_hash_node_print (bin_buf, &hnode, data);
     }
 }
 
 static void
 print_results_kx (CallbackData *data)
 {
-  g_hash_table_foreach (data->htable, (GHFunc)bin_seq_hash_node_print, data);
+  GError *error      = NULL;
+  int     use_stdout = 1;
+
+  /* Open */
+  if (!data->output_path || !*data->output_path || (data->output_path[0] == '-' && data->output_path[1] == '\0'))
+    data->output_channel = g_io_channel_unix_new (STDOUT_FILENO);
+  else
+    {
+      use_stdout     = 0;
+      data->output_channel = g_io_channel_new_file (data->output_path, "w", &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] failed to open output file `%s': %s\n",
+                      data->output_path,
+                      error->message);
+          exit (1);
+        }
+    }
+  g_io_channel_set_encoding (data->output_channel, NULL, NULL);
+
+  if (data->fast)
+    {
+      if (data->k == 8)
+        print_results_k8 (data);
+      else if (data->k == 16)
+        print_results_k16 (data);
+    }
+  else
+    g_hash_table_foreach (data->htable,
+                          (GHFunc)bin_seq_hash_node_print,
+                          data);
+  /* Close */
+  if (!use_stdout)
+    {
+      g_io_channel_shutdown (data->output_channel, TRUE, &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] Closing output file `%s' failed: %s\n",
+                      data->output_path,
+                      error->message);
+          g_error_free (error);
+        }
+    }
+  g_io_channel_unref (data->output_channel);
 }
 
 static BinSeqHashNode*
@@ -545,8 +598,41 @@ bin_seq_hash_node_print (unsigned char       *key,
                          BinSeqHashNode      *node,
                          CallbackData        *data)
 {
-  data->tmp_str = bin_to_char_prealloc (data->tmp_str, node->word, data->k);
-  g_print ("%s %ld\n", data->tmp_str, node->n);
+  GError  *error = NULL;
+  GString *buffer;
+
+  buffer = g_string_new (NULL);
+  if (data->bin_out)
+    {
+      const unsigned long int val = GULONG_TO_BE (node->n);
+      g_string_append_len (buffer, (char*)node->word, data->k_bytes);
+      g_string_append_len (buffer, (char*)&val, sizeof (unsigned long int));
+      g_io_channel_write_chars (data->output_channel,
+                                buffer->str,
+                                data->k_bytes + sizeof (unsigned long int),
+                                NULL,
+                                &error);
+    }
+  else
+    {
+      data->tmp_str = bin_to_char_prealloc (data->tmp_str, node->word, data->k);
+      g_string_printf (buffer, "%s %ld\n", data->tmp_str, node->n);
+      g_io_channel_write_chars (data->output_channel,
+                                buffer->str,
+                                -1,
+                                NULL,
+                                &error);
+    }
+  g_string_free (buffer, TRUE);
+
+  if (error)
+    {
+      g_printerr ("[ERROR] Writing to output file `%s' failed: %s\n",
+                  data->output_path,
+                  error->message);
+      g_error_free (error);
+      error = NULL;
+    }
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
