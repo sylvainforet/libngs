@@ -11,29 +11,17 @@
 #include "ngs_fastq.h"
 #include "ngs_utils.h"
 
-
-typedef struct _KmerHashTable KmerHashTable;
-
-typedef unsigned long int (*KmerHashTableHashFunc)  (KmerHashTable *htable,
-                                                     unsigned char *key);
-
-typedef int               (*KmerHashTableEqualFunc) (KmerHashTable *htable,
-                                                     unsigned char *key1,
-                                                     unsigned char *key2);
-
-struct _KmerHashTable
-{
-  KmerHashTableHashFunc  hash_func;
-  KmerHashTableEqualFunc equal_func;
-
-  GPtrArray       **buckets;
-  GStringChunk     *kwords;
-
-  unsigned long int size;
-  unsigned long int nb_elems;
-  unsigned int      word_size_letters;
-  unsigned int      word_size_bytes;
-};
+/* fast itoa implementarion, does not zero terminate the buffer and only works
+ * with strictly positive numbers */
+#define uitoa_no0(i, buf, buf_size, ret, n_chars) \
+do { \
+  ret = buf + buf_size; \
+  do { \
+      *--ret = '0' + (i % 10); \
+      i /= 10; \
+      ++n_chars; \
+  } while (i != 0); \
+} while (0)
 
 typedef struct _KmerHashNode KmerHashNode;
 
@@ -51,12 +39,9 @@ struct _CallbackData
   char              *output_path;
   GIOChannel        *output_channel;
 
-  KmerHashTable     *htable;
-  char              *tmp_str;
+  GHashTable        *htable;
+  GStringChunk      *chunks;
 
-  unsigned long int *harray;
-
-  unsigned long int  hsize;
   unsigned long int  n_seqs;
   unsigned long int  freq_report;
   unsigned int       k;
@@ -66,28 +51,12 @@ struct _CallbackData
   int                verbose;
 };
 
-static KmerHashTable*    kmer_hash_table_new        (unsigned long int    size,
-                                                     unsigned int         word_size_letters);
+static unsigned int word_size_bytes;
 
-static void              kmer_hash_table_free       (KmerHashTable       *htable);
+static int               kmer_equal_default         (const unsigned char *key1,
+                                                     const unsigned char *key2);
 
-/*
-static KmerHashNode*     kmer_hash_table_lookup     (KmerHashTable       *htable,
-                                                     unsigned char       *key);
-
-static void              kmer_hash_table_insert     (KmerHashTable       *htable,
-                                                     unsigned char       *key);
-*/
-
-static void              kmer_hash_table_inc        (KmerHashTable       *htable,
-                                                     unsigned char       *key);
-
-static int               kmer_equal_default         (KmerHashTable       *htable,
-                                                     unsigned char       *key1,
-                                                     unsigned char       *key2);
-
-static unsigned long int kmer_hash_default          (KmerHashTable       *htable,
-                                                     unsigned char       *key);
+static unsigned long int kmer_hash_default          (const unsigned char *key);
 
 static KmerHashNode*     kmer_hash_node_new         (void);
 
@@ -110,9 +79,6 @@ static int               iter_func_char             (char                *seq,
 static int               iter_char_seq_kx           (CallbackData        *data,
                                                      const char          *seq,
                                                      unsigned long int    size);
-
-static void              kmer_hash_node_print       (KmerHashNode        *hnode,
-                                                     CallbackData        *data);
 
 static void              print_results              (CallbackData        *data);
 
@@ -145,14 +111,12 @@ main (int    argc,
       error = NULL;
       return 1;
     }
-  if (data.harray)
-    g_free (data.harray);
   if (data.htable)
-    kmer_hash_table_free (data.htable);
-  if (data.tmp_str)
-    g_free (data.tmp_str);
+    g_hash_table_destroy (data.htable);
   if (data.output_path)
     g_free (data.output_path);
+  if (data.chunks)
+    g_string_chunk_free (data.chunks);
 
   return 0;
 }
@@ -165,7 +129,6 @@ parse_args (CallbackData      *data,
   GOptionEntry entries[] =
     {
       {"out",      'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output file", NULL},
-      {"hsize",    's', 0, G_OPTION_ARG_INT,      &data->hsize,       "Number of buckets in the hash table", NULL},
       {"kmer",     'k', 0, G_OPTION_ARG_INT,      &data->k,           "K-mer size", NULL},
       {"freqrep",  'e', 0, G_OPTION_ARG_INT,      &data->freq_report, "Verbose-report frequency", NULL},
       {"revcomp",  'r', 0, G_OPTION_ARG_NONE,     &data->do_revcomp,  "Also scan the reverse complement", NULL},
@@ -177,7 +140,6 @@ parse_args (CallbackData      *data,
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->hsize       = 1024 * 1024;
   data->k           = 0;
   data->do_revcomp  = 0;
   data->is_fastq    = 0;
@@ -186,9 +148,7 @@ parse_args (CallbackData      *data,
   data->n_seqs      = 0;
   data->freq_report = 1000000;
   data->output_path = strdup("-");
-  data->harray      = NULL;
   data->htable      = NULL;
-  data->tmp_str     = NULL;
 
   context = g_option_context_new ("FILE - Count the number of kmers in a fasta file");
   g_option_context_add_group (context, get_fasta_option_group ());
@@ -207,21 +167,20 @@ parse_args (CallbackData      *data,
       exit (1);
     }
 
-  if (data->hsize < 1)
-    {
-      g_printerr ("[ERROR] The number of buckets must be larger than 0\n");
-      exit (1);
-    }
   if (data->k < 1)
     {
       g_printerr ("[ERROR] The kmer size must be larger than 0\n");
       exit (1);
     }
 
-  data->htable     = kmer_hash_table_new (data->hsize, data->k);
-  if (data->verbose)
-    g_printerr ("Created hashing table with %ld buckets and %d letters per word\n", data->hsize, data->k);
+  data->htable     = g_hash_table_new_full ((GHashFunc)kmer_hash_default,
+                                            (GEqualFunc)kmer_equal_default,
+                                            NULL,
+                                            (GDestroyNotify)kmer_hash_node_free);
+  data->chunks     = g_string_chunk_new (data->k);
   data->input_path = (*argv)[1];
+
+  word_size_bytes  = data->k;
 }
 
 static int
@@ -290,6 +249,7 @@ iter_char_seq_kx (CallbackData     *data,
   for (i = j - k; i < maxi; i++)
     {
       char c;
+      KmerHashNode *node;
 
       /* Skip over Ns */
       c = seq[i + data->k - 1];
@@ -312,7 +272,15 @@ iter_char_seq_kx (CallbackData     *data,
             return 1;
           i = j - k;
         }
-      kmer_hash_table_inc (data->htable, (unsigned char*)seq + i);
+      if (g_hash_table_lookup_extended (data->htable, seq + i, NULL, (void**)&node))
+        node->n++;
+      else
+        {
+          node       = kmer_hash_node_new ();
+          node->n    = 1;
+          node->kmer = (unsigned char*)g_string_chunk_insert_len (data->chunks, (char*)seq + i, data->k);
+          g_hash_table_insert (data->htable, node->kmer, node);
+        }
     }
   return 1;
 }
@@ -320,10 +288,13 @@ iter_char_seq_kx (CallbackData     *data,
 static void
 print_results (CallbackData *data)
 {
+  GHashTableIter     iter;
+  unsigned char     *key;
+  char              *buffer;
+  char              *itoa_ptr;
+  KmerHashNode      *hnode;
   GError            *error      = NULL;
   int               use_stdout = 1;
-  unsigned long int i;
-  unsigned long int j;
 
   /* Open */
   if (!data->output_path || !*data->output_path || (data->output_path[0] == '-' && data->output_path[1] == '\0'))
@@ -342,10 +313,37 @@ print_results (CallbackData *data)
     }
   g_io_channel_set_encoding (data->output_channel, NULL, NULL);
 
-  for (i = 0; i < data->htable->size; i++)
-    if (data->htable->buckets[i])
-      for (j = 0; j < data->htable->buckets[i]->len; j++)
-        kmer_hash_node_print ((KmerHashNode*)data->htable->buckets[i]->pdata[j], data);
+  buffer = g_alloca (64);
+  buffer[63] = '\n';
+  g_hash_table_iter_init (&iter, data->htable);
+  while (g_hash_table_iter_next (&iter, (void**)&key, (void**)&hnode))
+    {
+      if (data->bin_out)
+        {
+          const unsigned long int val = GULONG_TO_BE (hnode->n);
+          g_io_channel_write_chars (data->output_channel,
+                                    (char*)hnode->kmer, data->k,
+                                    NULL, NULL);
+          g_io_channel_write_chars (data->output_channel,
+                                    (char*)&val, sizeof (unsigned long int),
+                                    NULL, NULL);
+        }
+      else
+        {
+          unsigned long int n;
+          int               j = 1;
+          g_io_channel_write_chars (data->output_channel,
+                                    (char*)hnode->kmer, data->k,
+                                    NULL, NULL);
+          n = hnode->n;
+          uitoa_no0 (n, buffer, 63, itoa_ptr, j);
+          *--itoa_ptr = ' ';
+          ++j;
+          g_io_channel_write_chars (data->output_channel,
+                                    itoa_ptr, j,
+                                    NULL, NULL);
+        }
+    }
 
   /* Close */
   if (!use_stdout)
@@ -362,186 +360,38 @@ print_results (CallbackData *data)
   g_io_channel_unref (data->output_channel);
 }
 
-static void
-kmer_hash_node_print (KmerHashNode *hnode,
-                      CallbackData *data)
-{
-  GError  *error = NULL;
-  GString *buffer;
-
-  buffer = g_string_new (NULL);
-  if (data->bin_out)
-    {
-      const unsigned long int val = GULONG_TO_BE (hnode->n);
-      g_string_append_len (buffer, (char*)hnode->kmer, data->k);
-      g_string_append_len (buffer, (char*)&val, sizeof (unsigned long int));
-      g_io_channel_write_chars (data->output_channel,
-                                buffer->str,
-                                data->k + sizeof (unsigned long int),
-                                NULL,
-                                &error);
-    }
-  else
-    {
-      g_string_append_len (buffer, (char*)hnode->kmer, data->k);
-      g_string_append_printf (buffer, " %ld\n", hnode->n);
-      g_io_channel_write_chars (data->output_channel,
-                                buffer->str,
-                                -1,
-                                NULL,
-                                &error);
-    }
-  g_string_free (buffer, TRUE);
-
-  if (error)
-    {
-      g_printerr ("[ERROR] Writing to output file `%s' failed: %s\n",
-                  data->output_path,
-                  error->message);
-      g_error_free (error);
-      error = NULL;
-    }
-}
-
-static KmerHashTable*
-kmer_hash_table_new (unsigned long int size,
-                     unsigned int      word_size_letters)
-{
-  KmerHashTable *htable;
-
-  htable                    = g_slice_new0 (KmerHashTable);
-  htable->size              = size;
-  htable->word_size_letters = word_size_letters;
-  htable->word_size_bytes   = htable->word_size_letters;
-  htable->buckets           = g_malloc0 (htable->size * sizeof (*htable->buckets));
-  htable->kwords            = g_string_chunk_new (word_size_letters);
-  htable->hash_func         = kmer_hash_default;
-  htable->equal_func        = kmer_equal_default;
-
-  return htable;
-}
-
-static void
-kmer_hash_table_free (KmerHashTable *htable)
-{
-  if (htable)
-    {
-      if (htable->kwords)
-        g_string_chunk_free (htable->kwords);
-      if (htable->buckets)
-        {
-          unsigned long int i;
-
-          for (i = 0; i < htable->size; i++)
-            if (htable->buckets[i])
-              g_ptr_array_free (htable->buckets[i], TRUE);
-
-          g_free (htable->buckets);
-        }
-      g_slice_free (KmerHashTable, htable);
-    }
-}
-
 static unsigned long int
-kmer_hash_default (KmerHashTable *htable,
-                   unsigned char *key)
+kmer_hash_default (const unsigned char *key)
 {
+  /*
   unsigned long int hash = 5381;
   unsigned int      i    = 0;
 
   do
     hash = (hash * 33) ^ key[i];
-  while (++i < htable->word_size_bytes);
+  while (++i < word_size_bytes);
+  */
+  unsigned long int hash = 0;
+  unsigned int      i    = 0;
 
-  return hash % htable->size;
+  do
+    hash = (hash << 5) - hash + key[i];
+  while (++i < word_size_bytes);
+
+  return hash;
 }
 
 static int
-kmer_equal_default (KmerHashTable *htable,
-                    unsigned char *key1,
-                    unsigned char *key2)
+kmer_equal_default (const unsigned char *key1,
+                    const unsigned char *key2)
 {
   unsigned int i;
 
-  for (i = 0; i < htable->word_size_bytes; i++)
+  for (i = 0; i < word_size_bytes; i++)
     if (key1[i] != key2[i])
       return 0;
 
   return 1;
-}
-
-/*
-static KmerHashNode*
-kmer_hash_table_lookup (KmerHashTable *htable,
-                        unsigned char *key)
-{
-  GPtrArray        *bucket;
-  unsigned long int idx;
-  unsigned long int i;
-
-  idx    = htable->hash_func (htable, key);
-  bucket = htable->buckets[idx];
-  if (!bucket)
-    return NULL;
-  for (i = 0; i < bucket->len; i++)
-    if (htable->equal_func (htable, key, ((KmerHashNode*)bucket->pdata[i])->kmer))
-      return (KmerHashNode*)bucket->pdata[i];
-
-  return NULL;
-}
-
-static void
-kmer_hash_table_insert (KmerHashTable *htable,
-                        unsigned char *key)
-{
-  KmerHashNode     *hnode;
-  GPtrArray        *bucket;
-  unsigned long int idx;
-  unsigned long int i;
-
-  idx    = htable->hash_func (htable, key);
-  bucket = htable->buckets[idx];
-  if (bucket)
-    for (i = 0; i < bucket->len; i++)
-      if (htable->equal_func (htable, key, ((KmerHashNode*)bucket->pdata[i])->kmer))
-        return;
-  htable->buckets[idx] = g_ptr_array_new_with_free_func ((GDestroyNotify)kmer_hash_node_free);
-  hnode                = kmer_hash_node_new ();
-  hnode->kmer          = (unsigned char*)g_string_chunk_insert_len (htable->kwords, (char*)key, htable->word_size_letters);
-  hnode->n             = 0;
-  g_ptr_array_add (htable->buckets[idx], hnode);
-  htable->nb_elems++;
-}
-*/
-
-static void
-kmer_hash_table_inc (KmerHashTable *htable,
-                     unsigned char *key)
-{
-  KmerHashNode     *hnode;
-  GPtrArray        *bucket;
-  unsigned long int idx;
-  unsigned long int i;
-
-  idx    = htable->hash_func (htable, key);
-  bucket = htable->buckets[idx];
-  if (bucket)
-    {
-      for (i = 0; i < bucket->len; i++)
-        if (htable->equal_func (htable, key, ((KmerHashNode*)bucket->pdata[i])->kmer))
-          {
-            ((KmerHashNode*)bucket->pdata[i])->n++;
-            return;
-          }
-    }
-  else
-    htable->buckets[idx] = g_ptr_array_new_with_free_func ((GDestroyNotify)kmer_hash_node_free);
-
-  hnode       = kmer_hash_node_new ();
-  hnode->kmer = (unsigned char*)g_string_chunk_insert_len (htable->kwords, (char*)key, htable->word_size_letters);
-  hnode->n    = 1;
-  g_ptr_array_add (htable->buckets[idx], hnode);
-  htable->nb_elems++;
 }
 
 static KmerHashNode*
