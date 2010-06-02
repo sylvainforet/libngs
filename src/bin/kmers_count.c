@@ -326,6 +326,8 @@ print_results (CallbackData *data)
   GError            *error      = NULL;
   int               use_stdout = 1;
 
+  if (data->verbose)
+    g_printerr ("Printing results\n");
   /* Open */
   if (!data->output_path || !*data->output_path || (data->output_path[0] == '-' && data->output_path[1] == '\0'))
     data->output_channel = g_io_channel_unix_new (STDOUT_FILENO);
