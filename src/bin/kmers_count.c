@@ -33,11 +33,17 @@ struct _KmerHashNode
 
 typedef struct _CallbackData CallbackData;
 
+typedef int (*IterCharSeqFunc) (CallbackData        *data,
+                                const char          *seq,
+                                unsigned long int    size);
+
 struct _CallbackData
 {
   char              *input_path;
   char              *output_path;
   GIOChannel        *output_channel;
+
+  IterCharSeqFunc    iter_char_seq_func;
 
   GHashTable        *htable;
   GStringChunk      *chunks;
@@ -93,11 +99,9 @@ static int               kmer_equal_k16             (const unsigned char *key1,
 
 static unsigned long int kmer_hash_k16              (const unsigned char *key);
 
-#if 0
 static int               iter_char_seq_k16          (CallbackData        *data,
                                                      const char          *seq,
                                                      unsigned long int    size);
-#endif
 
 int
 main (int    argc,
@@ -201,15 +205,21 @@ parse_args (CallbackData      *data,
   word_size_bytes  = data->k_bytes;
 
   if (data->k == 16)
-    data->htable = g_hash_table_new_full ((GHashFunc)kmer_hash_k16,
-                                          (GEqualFunc)kmer_equal_k16,
-                                          NULL,
-                                          (GDestroyNotify)kmer_hash_node_free);
+    {
+      data->htable = g_hash_table_new_full ((GHashFunc)kmer_hash_k16,
+                                            (GEqualFunc)kmer_equal_k16,
+                                            NULL,
+                                            (GDestroyNotify)kmer_hash_node_free);
+      data->iter_char_seq_func = iter_char_seq_k16;
+    }
   else
-    data->htable = g_hash_table_new_full ((GHashFunc)kmer_hash_default,
-                                          (GEqualFunc)kmer_equal_default,
-                                          NULL,
-                                          (GDestroyNotify)kmer_hash_node_free);
+    {
+      data->htable = g_hash_table_new_full ((GHashFunc)kmer_hash_default,
+                                            (GEqualFunc)kmer_equal_default,
+                                            NULL,
+                                            (GDestroyNotify)kmer_hash_node_free);
+      data->iter_char_seq_func = iter_char_seq_default;
+    }
 
   if (data->verbose)
     g_printerr ("Parsing %s with k = %d\n", data->input_path, data->k);
@@ -236,11 +246,11 @@ iter_func_char (char              *seq,
 {
   int            ret;
 
-  ret = iter_char_seq_default (data, seq, size);
+  ret = data->iter_char_seq_func (data, seq, size);
   if (ret != 1)
     return ret;
   if (data->do_revcomp)
-    ret = iter_char_seq_default (data, rev_comp_in_place (seq, size), size);
+    ret = data->iter_char_seq_func (data, rev_comp_in_place (seq, size), size);
 
   data->n_seqs++;
   if (data->verbose && data->n_seqs % data->freq_report == 0)
@@ -466,29 +476,17 @@ static int
 kmer_equal_k16 (const unsigned char *key1,
                 const unsigned char *key2)
 {
-  int b1 = (key1[0] == key2[0]);
-  int b2 = (key1[1] == key2[1]);
-  int b3 = (key1[2] == key2[2]);
-  int b4 = (key1[3] == key2[3]);
-  b1 = b1 && b2;
-  b3 = b3 && b4;
-  return b1 && b3;
+  const guint32 i1 = *(guint32*)key1;
+  const guint32 i2 = *(guint32*)key2;
+  return i1 == i2;
 }
 
 static unsigned long int
 kmer_hash_k16 (const unsigned char *key)
 {
-  unsigned long int hash = key[3];
-  hash <<= 8;
-  hash  |= key[2];
-  hash <<= 8;
-  hash  |= key[1];
-  hash <<= 8;
-  hash  |= key[0];
-  return ((unsigned int)(hash * 2654435769U));;
+  return (*(guint32*)key) * 2654435769U;;
 }
 
-#if 0
 static int
 iter_char_seq_k16 (CallbackData        *data,
                    const char          *seq,
@@ -509,14 +507,19 @@ iter_char_seq_k16 (CallbackData        *data,
         k = 0;
       else
         k++;
-      if (k == data->k)
+      if (k == 16)
         {
           j++;
           break;
         }
     }
-  if (k < data->k)
+  if (k < 16)
     return 1;
+  char_to_bin_prealloc (data->tmp_kmer, seq + j - k, data->k);
+  data->tmp_kmer[0] <<= 2;
+  data->tmp_kmer[1] <<= 2;
+  data->tmp_kmer[2] <<= 2;
+  data->tmp_kmer[3] <<= 2;
   for (i = j - k; i < maxi; i++)
     {
       char c;
@@ -527,36 +530,48 @@ iter_char_seq_k16 (CallbackData        *data,
       if (c == 'N' || c == 'n')
         {
           k = 0;
-          for (j = i + data->k; j < size; j++)
+          for (j = i + 16; j < size; j++)
             {
               if (seq[j] == 'N' || seq[j] == 'n')
                 k = 0;
               else
                 k++;
-              if (k == data->k)
+              if (k == 16)
                 {
                   j++;
                   break;
                 }
             }
-          if (k < data->k)
+          if (k < 16)
             return 1;
           i = j - k;
+          char_to_bin_prealloc (data->tmp_kmer, seq + i, data->k);
         }
-      char_to_bin_prealloc (data->tmp_kmer, seq + i, data->k);
+      else
+        {
+          data->tmp_kmer[0] >>= 2;
+          data->tmp_kmer[1] >>= 2;
+          data->tmp_kmer[2] >>= 2;
+          data->tmp_kmer[3] >>= 2;
+
+          data->tmp_kmer[0] |= char_to_bin_table[(unsigned char)seq[i +  3]] << 6;
+          data->tmp_kmer[1] |= char_to_bin_table[(unsigned char)seq[i +  7]] << 6;
+          data->tmp_kmer[2] |= char_to_bin_table[(unsigned char)seq[i + 11]] << 6;
+          data->tmp_kmer[3] |= char_to_bin_table[(unsigned char)seq[i + 15]] << 6;
+        }
+
       if (g_hash_table_lookup_extended (data->htable, (char*)data->tmp_kmer, NULL, (void**)&node))
         node->n++;
       else
         {
           node       = kmer_hash_node_new ();
           node->n    = 1;
-          node->kmer = (unsigned char*)g_string_chunk_insert_len (data->chunks, (char*)data->tmp_kmer, data->k_bytes);
+          node->kmer = (unsigned char*)g_string_chunk_insert_len (data->chunks, (char*)data->tmp_kmer, 4);
           g_hash_table_insert (data->htable, node->kmer, node);
         }
     }
   return 1;
 }
-#endif
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */
