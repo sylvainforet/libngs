@@ -210,6 +210,9 @@ parse_args (CallbackData      *data,
                                           (GEqualFunc)kmer_equal_default,
                                           NULL,
                                           (GDestroyNotify)kmer_hash_node_free);
+
+  if (data->verbose)
+    g_printerr ("Parsing %s with k = %d\n", data->input_path, data->k);
 }
 
 static int
