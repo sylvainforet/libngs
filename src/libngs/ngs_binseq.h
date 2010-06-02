@@ -12,7 +12,8 @@
 #define NUCS_PER_BYTE   (BITS_PER_BYTE / BITS_PER_NUC)
 
 extern const unsigned char revcomp_table[];
-extern unsigned char char_to_bin_table[];
+extern unsigned char       char_to_bin_table[];
+extern char                bin_to_char_table[];
 
 /**********/
 /* BinSeq */

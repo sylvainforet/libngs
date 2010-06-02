@@ -30,7 +30,7 @@ unsigned char char_to_bin_table[128] =
   ['T'] = NUC_T,
 };
 
-static char bin_to_char_table[NUC_NB] =
+char bin_to_char_table[NUC_NB] =
 {
   [NUC_A] = 'A',
   [NUC_C] = 'C',
@@ -120,7 +120,7 @@ bin_to_char (const unsigned char *seq,
   return new_seq;
 }
 
-char*  
+char*
 bin_to_char_prealloc  (char                *dest,
                        const unsigned char *src,
                        unsigned long int    size)

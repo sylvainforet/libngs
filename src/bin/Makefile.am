@@ -31,6 +31,7 @@ bin_PROGRAMS = \
 	cg_meth_count \
 	cg_meth_dist \
 	kmers_count \
+	kmers_count_array16 \
 	kmers_bin_tool
 
 fastq2fasta_LDADD = \
@@ -132,6 +133,11 @@ kmers_count_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 kmers_count_SOURCES = \
 	kmers_count.c
+
+kmers_count_array16_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+kmers_count_array16_SOURCES = \
+	kmers_count_array16.c
 
 kmers_bin_tool_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
