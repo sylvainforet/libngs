@@ -103,6 +103,15 @@ static int               iter_char_seq_k16          (CallbackData        *data,
                                                      const char          *seq,
                                                      unsigned long int    size);
 
+static int               kmer_equal_k32             (const unsigned char *key1,
+                                                     const unsigned char *key2);
+
+static unsigned long int kmer_hash_k32              (const unsigned char *key);
+
+static int               iter_char_seq_k32          (CallbackData        *data,
+                                                     const char          *seq,
+                                                     unsigned long int    size);
+
 int
 main (int    argc,
       char **argv)
@@ -211,6 +220,14 @@ parse_args (CallbackData      *data,
                                             NULL,
                                             (GDestroyNotify)kmer_hash_node_free);
       data->iter_char_seq_func = iter_char_seq_k16;
+    }
+  else if (data->k == 32)
+    {
+      data->htable = g_hash_table_new_full ((GHashFunc)kmer_hash_k32,
+                                            (GEqualFunc)kmer_equal_k32,
+                                            NULL,
+                                            (GDestroyNotify)kmer_hash_node_free);
+      data->iter_char_seq_func = iter_char_seq_k32;
     }
   else
     {
@@ -333,8 +350,7 @@ print_results (CallbackData *data)
   GHashTableIter     iter;
   unsigned char     *key;
   char              *buffer;
-  char              *tmp_str;
-  char              *itoa_ptr;
+  char              *buffer_ptr;
   KmerHashNode      *hnode;
   GError            *error      = NULL;
   int               use_stdout = 1;
@@ -359,9 +375,9 @@ print_results (CallbackData *data)
   g_io_channel_set_encoding (data->output_channel, NULL, NULL);
   g_io_channel_set_buffer_size (data->output_channel, 1024 * 1024 * 32);
 
-  tmp_str    = g_alloca (data->k);
-  buffer     = g_alloca (64);
-  buffer[63] = '\n';
+#define DIGITS_BUFF_SPACE 32
+  buffer = g_alloca (data->k + DIGITS_BUFF_SPACE);
+  buffer[data->k + DIGITS_BUFF_SPACE - 1] = '\n';
   g_hash_table_iter_init (&iter, data->htable);
   while (g_hash_table_iter_next (&iter, (void**)&key, (void**)&hnode))
     {
@@ -380,19 +396,18 @@ print_results (CallbackData *data)
           unsigned long int n;
           int               j = 1;
 
-          bin_to_char_prealloc (tmp_str, hnode->kmer, data->k);
+          n             = hnode->n;
+          uitoa_no0 (n, buffer, DIGITS_BUFF_SPACE - 1 + data->k, buffer_ptr, j);
+          *--buffer_ptr = ' ';
+          j            += 1 + data->k;
+          buffer_ptr   -= data->k;
+          bin_to_char_prealloc (buffer_ptr, hnode->kmer, data->k);
           g_io_channel_write_chars (data->output_channel,
-                                    tmp_str, data->k,
-                                    NULL, NULL);
-          n = hnode->n;
-          uitoa_no0 (n, buffer, 63, itoa_ptr, j);
-          *--itoa_ptr = ' ';
-          ++j;
-          g_io_channel_write_chars (data->output_channel,
-                                    itoa_ptr, j,
+                                    buffer_ptr, j,
                                     NULL, NULL);
         }
     }
+#undef DIGITS_BUFF_SPACE
 
   /* Close */
   if (!use_stdout)
@@ -488,6 +503,22 @@ kmer_hash_k16 (const unsigned char *key)
 }
 
 static int
+kmer_equal_k32 (const unsigned char *key1,
+                const unsigned char *key2)
+{
+  const guint64 i1 = *(guint64*)key1;
+  const guint64 i2 = *(guint64*)key2;
+  return i1 == i2;
+}
+
+static unsigned long int
+kmer_hash_k32 (const unsigned char *key)
+{
+  guint32 *k = (guint32*) key;
+  return (k[0] ^ k[1]) * 2654435769U;
+}
+
+static int
 iter_char_seq_k16 (CallbackData        *data,
                    const char          *seq,
                    unsigned long int    size)
@@ -566,7 +597,105 @@ iter_char_seq_k16 (CallbackData        *data,
         {
           node       = kmer_hash_node_new ();
           node->n    = 1;
-          node->kmer = (unsigned char*)g_string_chunk_insert_len (data->chunks, (char*)data->tmp_kmer, 4);
+          node->kmer = (unsigned char*)g_string_chunk_insert_len (data->chunks, (char*)data->tmp_kmer, data->k_bytes);
+          g_hash_table_insert (data->htable, node->kmer, node);
+        }
+    }
+  return 1;
+}
+
+static int
+iter_char_seq_k32 (CallbackData        *data,
+                   const char          *seq,
+                   unsigned long int    size)
+{
+  unsigned long int       i;
+  unsigned long int       j;
+  unsigned long int       k;
+  const unsigned long int maxi = size - data->k + 1;
+
+  if (size < data->k)
+    return 1;
+
+  /* Find the first index of a kmer without Ns */
+  for (j = 0, k = 0; j < size; j++)
+    {
+      if (seq[j] == 'N' || seq[j] == 'n')
+        k = 0;
+      else
+        k++;
+      if (k == 32)
+        {
+          j++;
+          break;
+        }
+    }
+  if (k < 32)
+    return 1;
+  char_to_bin_prealloc (data->tmp_kmer, seq + j - k, data->k);
+  data->tmp_kmer[0] <<= 2;
+  data->tmp_kmer[1] <<= 2;
+  data->tmp_kmer[2] <<= 2;
+  data->tmp_kmer[3] <<= 2;
+  data->tmp_kmer[4] <<= 2;
+  data->tmp_kmer[5] <<= 2;
+  data->tmp_kmer[6] <<= 2;
+  data->tmp_kmer[7] <<= 2;
+  for (i = j - k; i < maxi; i++)
+    {
+      char c;
+      KmerHashNode *node;
+
+      /* Skip over Ns */
+      c = seq[i + data->k - 1];
+      if (c == 'N' || c == 'n')
+        {
+          k = 0;
+          for (j = i + 32; j < size; j++)
+            {
+              if (seq[j] == 'N' || seq[j] == 'n')
+                k = 0;
+              else
+                k++;
+              if (k == 32)
+                {
+                  j++;
+                  break;
+                }
+            }
+          if (k < 32)
+            return 1;
+          i = j - k;
+          char_to_bin_prealloc (data->tmp_kmer, seq + i, data->k);
+        }
+      else
+        {
+          data->tmp_kmer[0] >>= 2;
+          data->tmp_kmer[1] >>= 2;
+          data->tmp_kmer[2] >>= 2;
+          data->tmp_kmer[3] >>= 2;
+          data->tmp_kmer[4] >>= 2;
+          data->tmp_kmer[5] >>= 2;
+          data->tmp_kmer[6] >>= 2;
+          data->tmp_kmer[7] >>= 2;
+
+          data->tmp_kmer[0] |= char_to_bin_table[(unsigned char)seq[i +  3]] << 6;
+          data->tmp_kmer[1] |= char_to_bin_table[(unsigned char)seq[i +  7]] << 6;
+          data->tmp_kmer[2] |= char_to_bin_table[(unsigned char)seq[i + 11]] << 6;
+          data->tmp_kmer[3] |= char_to_bin_table[(unsigned char)seq[i + 15]] << 6;
+          data->tmp_kmer[4] |= char_to_bin_table[(unsigned char)seq[i + 19]] << 6;
+          data->tmp_kmer[5] |= char_to_bin_table[(unsigned char)seq[i + 23]] << 6;
+          data->tmp_kmer[6] |= char_to_bin_table[(unsigned char)seq[i + 27]] << 6;
+          data->tmp_kmer[7] |= char_to_bin_table[(unsigned char)seq[i + 31]] << 6;
+        }
+
+      if (g_hash_table_lookup_extended (data->htable, (char*)data->tmp_kmer, NULL, (void**)&node))
+        node->n++;
+      else
+        {
+          node       = kmer_hash_node_new ();
+          node->n    = 1;
+          node->kmer = (unsigned char*)g_string_chunk_insert_len (data->chunks, (char*)data->tmp_kmer, data->k_bytes);
           g_hash_table_insert (data->htable, node->kmer, node);
         }
     }

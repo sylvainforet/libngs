@@ -349,7 +349,7 @@ iter_char_seq_k16 (CallbackData        *data,
                    const char          *seq,
                    unsigned long int    size)
 {
-  unsigned long int       idx;
+  guint32                 idx;
   unsigned long int       i;
   unsigned long int       j;
   unsigned long int       k;
