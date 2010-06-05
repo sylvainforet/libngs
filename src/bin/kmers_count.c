@@ -12,7 +12,7 @@
 #include "ngs_utils.h"
 
 /* fast itoa implementarion, does not zero terminate the buffer and only works
- * with strictly positive numbers */
+ * with positive numbers */
 #define uitoa_no0(i, buf, buf_size, ret, n_chars)   \
 do {                                                \
   ret = buf + buf_size;                             \
@@ -183,7 +183,7 @@ parse_args (CallbackData      *data,
   data->htable      = NULL;
   data->tmp_kmer    = NULL;
 
-  context = g_option_context_new ("FILE - Count the number of kmers in a fasta file");
+  context = g_option_context_new ("FILE - Count the number of kmers in a fasta/fastq file");
   g_option_context_add_group (context, get_fasta_option_group ());
   g_option_context_add_group (context, get_fastq_option_group ());
   g_option_context_add_main_entries (context, entries, NULL);
@@ -352,7 +352,7 @@ print_results (CallbackData *data)
   char              *buffer;
   char              *buffer_ptr;
   KmerHashNode      *hnode;
-  GError            *error      = NULL;
+  GError            *error     = NULL;
   int               use_stdout = 1;
 
   if (data->verbose)
@@ -381,21 +381,21 @@ print_results (CallbackData *data)
   g_hash_table_iter_init (&iter, data->htable);
   while (g_hash_table_iter_next (&iter, (void**)&key, (void**)&hnode))
     {
+      int j;
       if (data->bin_out)
         {
-          const unsigned long int val = GULONG_TO_BE (hnode->n);
+          for (j = 0; j < data->k_bytes; j++)
+            buffer[j] = hnode->kmer[j];
+          *((unsigned long int*)(buffer + j)) = GULONG_TO_BE (hnode->n);
           g_io_channel_write_chars (data->output_channel,
-                                    (char*)hnode->kmer, data->k_bytes,
-                                    NULL, NULL);
-          g_io_channel_write_chars (data->output_channel,
-                                    (char*)&val, sizeof (unsigned long int),
-                                    NULL, NULL);
+                                    (char*)buffer, data->k_bytes + sizeof (unsigned long int),
+                                    NULL, &error);
         }
       else
         {
           unsigned long int n;
-          int               j = 1;
 
+          j             = 1;
           n             = hnode->n;
           uitoa_no0 (n, buffer, DIGITS_BUFF_SPACE - 1 + data->k, buffer_ptr, j);
           *--buffer_ptr = ' ';
@@ -404,7 +404,14 @@ print_results (CallbackData *data)
           bin_to_char_prealloc (buffer_ptr, hnode->kmer, data->k);
           g_io_channel_write_chars (data->output_channel,
                                     buffer_ptr, j,
-                                    NULL, NULL);
+                                    NULL, &error);
+        }
+      if (error)
+        {
+          g_printerr ("[ERROR] Writing to output file `%s' failed: %s\n",
+                      data->output_path,
+                      error->message);
+          exit (1);
         }
     }
 #undef DIGITS_BUFF_SPACE

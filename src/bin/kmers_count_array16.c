@@ -11,8 +11,10 @@
 #include "ngs_fastq.h"
 #include "ngs_utils.h"
 
+#define WORD_SIZE 16
+
 /* fast itoa implementarion, does not zero terminate the buffer and only works
- * with strictly positive numbers */
+ * with positive numbers */
 #define uitoa_no0(i, buf, buf_size, ret, n_chars)   \
 do {                                                \
   ret = buf + buf_size;                             \
@@ -36,7 +38,6 @@ struct _CallbackData
 
   unsigned long int  n_seqs;
   unsigned long int  freq_report;
-  unsigned int       k;
   unsigned int       k_bytes;
   int                do_revcomp;
   int                is_fastq;
@@ -112,7 +113,6 @@ parse_args (CallbackData      *data,
   GOptionEntry entries[] =
     {
       {"out",      'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output file", NULL},
-      /* {"kmer",     'k', 0, G_OPTION_ARG_INT,      &data->k,           "K-mer size", NULL}, */
       {"freqrep",  'e', 0, G_OPTION_ARG_INT,      &data->freq_report, "Verbose-report frequency", NULL},
       {"revcomp",  'r', 0, G_OPTION_ARG_NONE,     &data->do_revcomp,  "Also scan the reverse complement", NULL},
       {"fastq",    'q', 0, G_OPTION_ARG_NONE,     &data->is_fastq,    "Input is in fastq format", NULL},
@@ -123,7 +123,6 @@ parse_args (CallbackData      *data,
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->k           = 16;
   data->do_revcomp  = 0;
   data->is_fastq    = 0;
   data->bin_out     = 0;
@@ -133,7 +132,7 @@ parse_args (CallbackData      *data,
   data->output_path = strdup("-");
   data->tmp_kmer    = NULL;
 
-  context = g_option_context_new ("FILE - Count the number of kmers in a fasta file");
+  context = g_option_context_new ("FILE - Count the number of 16-mers in a fasta/fastq file");
   g_option_context_add_group (context, get_fasta_option_group ());
   g_option_context_add_group (context, get_fastq_option_group ());
   g_option_context_add_main_entries (context, entries, NULL);
@@ -150,19 +149,17 @@ parse_args (CallbackData      *data,
       exit (1);
     }
 
-  data->k_bytes    = (data->k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
+  data->k_bytes    = (WORD_SIZE + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
   data->tmp_kmer   = g_malloc0 (data->k_bytes);
   data->input_path = (*argv)[1];
   word_size_bytes  = data->k_bytes;
 
   if (data->verbose)
-    g_printerr ("Allocating array of size %lu\n", (1L<<32));
-  data->array      = g_malloc0 ((1L<<32) * sizeof (*data->array));
-  if (data->verbose)
-    g_printerr ("DONE !!!\n");
+    g_printerr ("Allocating array of size %lu\n", (1L << 32) * sizeof (*data->array));
+  data->array      = g_malloc0 ((1L << 32) * sizeof (*data->array));
 
   if (data->verbose)
-    g_printerr ("Parsing %s with k = %d\n", data->input_path, data->k);
+    g_printerr ("Parsing %s with k = %d\n", data->input_path, WORD_SIZE);
 }
 
 static int
@@ -230,9 +227,8 @@ print_results (CallbackData *data)
   } bin_out;
   unsigned long int  i;
   char              *buffer;
-  char              *tmp_str;
-  char              *itoa_ptr;
-  GError            *error      = NULL;
+  char              *buffer_ptr;
+  GError            *error     = NULL;
   int               use_stdout = 1;
 
   if (data->verbose)
@@ -255,40 +251,45 @@ print_results (CallbackData *data)
   g_io_channel_set_encoding (data->output_channel, NULL, NULL);
   g_io_channel_set_buffer_size (data->output_channel, 1024 * 1024 * 32);
 
-  tmp_str    = g_alloca (data->k);
-  buffer     = g_alloca (64);
-  buffer[63] = '\n';
-  for (i = 0; i < (1L<<32); i++)
+#define DIGITS_BUFF_SPACE 32
+  buffer = g_alloca (WORD_SIZE + DIGITS_BUFF_SPACE);
+  buffer[WORD_SIZE + DIGITS_BUFF_SPACE - 1] = '\n';
+  for (i = 0; i < (1L << 32); i++)
     {
       if (!data->array[i])
         continue;
       if (data->bin_out)
         {
-          /* FIXME whatchout for endianness */
-          bin_out.i = (guint32)i;
-          bin_out.n = data->array[i];
+          bin_out.i = GUINT32_TO_BE ((guint32)i);
+          bin_out.n = GULONG_TO_BE (data->array[i]);
           g_io_channel_write_chars (data->output_channel,
                                     (char*)&bin_out, sizeof (bin_out),
-                                    NULL, NULL);
+                                    NULL, &error);
         }
       else
         {
           unsigned long int n;
           int               j = 1;
 
-          guint32_to_char (tmp_str, (guint32)i);
+          n             = data->array[i];
+          uitoa_no0 (n, buffer, DIGITS_BUFF_SPACE - 1 + WORD_SIZE, buffer_ptr, j);
+          *--buffer_ptr = ' ';
+          j            += 1 + WORD_SIZE;
+          buffer_ptr   -= WORD_SIZE;
+          guint32_to_char (buffer_ptr, (guint32)i);
           g_io_channel_write_chars (data->output_channel,
-                                    tmp_str, data->k,
-                                    NULL, NULL);
-          n = data->array[i];
-          uitoa_no0 (n, buffer, 63, itoa_ptr, j);
-          *--itoa_ptr = ' ';
-          ++j;
-          g_io_channel_write_chars (data->output_channel,
-                                    itoa_ptr, j,
-                                    NULL, NULL);
+                                    buffer_ptr, j,
+                                    NULL, &error);
+        }
+      if (error)
+        {
+          g_printerr ("[ERROR] Writing to output file `%s' failed: %s\n",
+                      data->output_path,
+                      error->message);
+          exit (1);
         }
     }
+#undef DIGITS_BUFF_SPACE
 
   /* Close */
   if (!use_stdout)
@@ -353,9 +354,9 @@ iter_char_seq_k16 (CallbackData        *data,
   unsigned long int       i;
   unsigned long int       j;
   unsigned long int       k;
-  const unsigned long int maxi = size - data->k + 1;
+  const unsigned long int maxi = size - WORD_SIZE + 1;
 
-  if (size < data->k)
+  if (size < WORD_SIZE)
     return 1;
 
   /* Find the first index of a kmer without Ns */
@@ -365,13 +366,13 @@ iter_char_seq_k16 (CallbackData        *data,
         k = 0;
       else
         k++;
-      if (k == 16)
+      if (k == WORD_SIZE)
         {
           j++;
           break;
         }
     }
-  if (k < 16)
+  if (k < WORD_SIZE)
     return 1;
   idx   = char16_to_guint32 (seq + j - k);
   idx <<= 2;
@@ -380,23 +381,23 @@ iter_char_seq_k16 (CallbackData        *data,
       char c;
 
       /* Skip over Ns */
-      c = seq[i + data->k - 1];
+      c = seq[i + WORD_SIZE - 1];
       if (c == 'N' || c == 'n')
         {
           k = 0;
-          for (j = i + 16; j < size; j++)
+          for (j = i + WORD_SIZE; j < size; j++)
             {
               if (seq[j] == 'N' || seq[j] == 'n')
                 k = 0;
               else
                 k++;
-              if (k == 16)
+              if (k == WORD_SIZE)
                 {
                   j++;
                   break;
                 }
             }
-          if (k < 16)
+          if (k < WORD_SIZE)
             return 1;
           i = j - k;
           idx = char16_to_guint32 (seq + j - k);
@@ -404,7 +405,7 @@ iter_char_seq_k16 (CallbackData        *data,
       else
         {
           idx >>= 2;
-          idx  |= char_to_bin_table[(unsigned char)seq[i + 15]] << 30;
+          idx  |= char_to_bin_table[(unsigned char)seq[i + WORD_SIZE - 1]] << 30;
         }
       data->array[idx]++;
     }

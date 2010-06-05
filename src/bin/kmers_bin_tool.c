@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "ngs_binseq.h"
 
@@ -13,12 +14,12 @@ struct _CallbackData
 {
   char              *input_path;
   GIOChannel        *input_channel;
-
-  unsigned char     *tmp_word;
-  char              *tmp_str;
+  char              *cmd;
 
   unsigned int       k;
   unsigned int       k_bytes;
+
+  int                verbose;
 };
 
 static void parse_args    (CallbackData      *data,
@@ -36,11 +37,6 @@ main (int    argc,
   parse_args (&data, &argc, &argv);
   kmer_bin_load (&data);
 
-  if (data.tmp_word)
-    g_free (data.tmp_word);
-  if (data.tmp_str)
-    g_free (data.tmp_str);
-
   return 0;
 }
 
@@ -52,16 +48,16 @@ parse_args (CallbackData      *data,
   GOptionEntry entries[] =
     {
       {"kmer",     'k', 0, G_OPTION_ARG_INT,      &data->k,           "K-mer size", NULL},
+      {"verbose",  'v', 0, G_OPTION_ARG_NONE,     &data->verbose,     "Verbose output", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
 
   data->k        = 0;
-  data->tmp_word = NULL;
-  data->tmp_str  = NULL;
+  data->verbose  = 0;
 
-  context = g_option_context_new ("FILE - blah blah fucking blah");
+  context = g_option_context_new ("CMD FILE - Utility to manipulate kmers count files");
   g_option_context_add_main_entries (context, entries, NULL);
   if (!g_option_context_parse (context, argc, argv, &error))
     {
@@ -72,7 +68,24 @@ parse_args (CallbackData      *data,
 
   if (*argc < 2)
     {
+      g_printerr ("[ERROR] No command provided\n");
+      exit (1);
+    }
+  data->cmd = (*argv)[1];
+  if (*argc < 3)
+    {
       g_printerr ("[ERROR] No input file provided\n");
+      exit (1);
+    }
+  data->input_path = (*argv)[2];
+  if (strcmp (data->cmd, "print") == 0)
+    {
+      if (data->verbose)
+        g_printerr ("Calling the `print' command\n");
+    }
+  else
+    {
+      g_printerr ("[ERROR] Unknown command: %s\n", data->cmd);
       exit (1);
     }
 
@@ -81,22 +94,17 @@ parse_args (CallbackData      *data,
       g_printerr ("[ERROR] The kmer size must be larger than 0\n");
       exit (1);
     }
-
-  data->k_bytes          = (data->k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
-  data->tmp_word         = g_malloc (data->k_bytes);
-  data->tmp_str          = g_malloc (data->k + 1);
-  data->tmp_str[data->k] = '\0';
-
-  data->input_path = (*argv)[1];
+  data->k_bytes = (data->k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
 }
 
 static void
 kmer_bin_load (CallbackData *data)
 {
-  GError           *error     = NULL;
-  int               use_stdin = 1;
-  unsigned long int val_be;
-  unsigned long int val;
+  GError        *error     = NULL;
+  int            use_stdin = 1;
+  char          *tmp_str;
+  unsigned char *buffer;
+  gsize          buffer_size;
 
   /* Open */
   if (!data->input_path || !*data->input_path || (data->input_path[0] == '-' && data->input_path[1] == '\0'))
@@ -114,44 +122,46 @@ kmer_bin_load (CallbackData *data)
         }
     }
   g_io_channel_set_encoding (data->input_channel, NULL, NULL);
+  /* TODO set channel buffering? */
+
+  buffer_size      = data->k_bytes + sizeof (unsigned long int);
+  buffer           = g_alloca (buffer_size);
+  tmp_str          = g_alloca (data->k + 1);
+  tmp_str[data->k] = '\0';
 
   while (1)
     {
-      GIOStatus status;
+      unsigned long int val_be;
+      unsigned long int val;
+      gsize             nb_read;
+      GIOStatus         status;
 
       status = g_io_channel_read_chars (data->input_channel,
-                                        (char*)data->tmp_word,
-                                        data->k_bytes,
-                                        NULL,
+                                        (char*)buffer,
+                                        buffer_size,
+                                        &nb_read,
                                         &error);
       if (error)
         {
           g_printerr ("[ERROR] Reading from input file `%s' failed: %s\n",
                       data->input_path,
                       error->message);
-          g_error_free (error);
           exit (1);
         }
-      if (status != G_IO_STATUS_NORMAL)
+      if (status == G_IO_STATUS_EOF || status != G_IO_STATUS_NORMAL)
         break;
-      status = g_io_channel_read_chars (data->input_channel,
-                                        (char*)&val_be,
-                                        sizeof (unsigned long int),
-                                        NULL,
-                                        &error);
-      if (error)
+      if (nb_read != buffer_size)
         {
-          g_printerr ("[ERROR] Reading from input file `%s' failed: %s\n",
-                      data->input_path,
-                      error->message);
-          g_error_free (error);
+          g_printerr ("[ERROR] Expected %ld bytes, read only %ld\n",
+                      buffer_size,
+                      nb_read);
           exit (1);
         }
-      val = GULONG_FROM_BE (val_be);
-      bin_to_char_prealloc (data->tmp_str, data->tmp_word, data->k);
-      g_print ("%s %ld\n", data->tmp_str, val);
-      if (status != G_IO_STATUS_NORMAL)
-        break;
+      bin_to_char_prealloc (tmp_str, buffer, data->k);
+      val_be = *(unsigned long int*)(buffer + data->k_bytes);
+      val    = GULONG_FROM_BE (val_be);
+      g_print ("%s %ld\n", tmp_str, val);
+
     }
 
   /* Close */
