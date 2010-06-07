@@ -143,6 +143,7 @@ static int
 iter_func (FastqSeq     *fastq,
            CallbackData *data)
 {
+  int start;
   int end;
 
   if (data->tot_trim > fastq->size)
@@ -153,19 +154,34 @@ iter_func (FastqSeq     *fastq,
       exit (1);
     }
 
-  end = fastq->size - data->end;
+  end     = fastq->size - data->end;
+  start   = data->start;
   if (data->qual > 0)
     {
+      int idx_max = start;
+      int max_len = 0;
+      int idx_tmp = start;
       int i;
-      for (i = 0; i < fastq->size; i++)
+      for (i = start; i < end; i++)
         if (fastq->qual[i] - FASTQ_QUAL_0 < data->qual)
-          break;
-      if (i < end)
-        end = i;
+          {
+            if (i - idx_tmp > max_len)
+              {
+                idx_max = idx_tmp;
+                max_len = i - idx_tmp;
+              }
+            idx_tmp = i + 1;
+          }
+      if (i - idx_tmp > max_len)
+        {
+          idx_max = idx_tmp;
+          max_len = i - idx_tmp;
+        }
+      start = idx_max;
+      end   = idx_max + max_len;
     }
 
-  if (end <= data->start ||
-      end - data->start < data->len)
+  if (end <= start || end - start < data->len)
     {
       if (data->keep)
         return write_fastq (data->output_channel,
@@ -177,7 +193,7 @@ iter_func (FastqSeq     *fastq,
                       fastq->name,
                       fastq->seq,
                       fastq->qual,
-                      data->start,
+                      start,
                       end);
 }
 
