@@ -87,21 +87,24 @@ char_to_bin_prealloc (unsigned char     *dest,
 {
   const unsigned long int mod_size = (size / NUCS_PER_BYTE) * NUCS_PER_BYTE;
   unsigned long int i;
+  unsigned long int j;
 
-  for (i = 0; i < mod_size; i++)
+  for (i = 0, j = 0; i < mod_size; i++, j++)
     {
-      const unsigned long int j = i / NUCS_PER_BYTE;
       dest[j]  = char_to_bin_table[(unsigned char)src[i]];
       dest[j] |= char_to_bin_table[(unsigned char)src[++i]] << 2;
       dest[j] |= char_to_bin_table[(unsigned char)src[++i]] << 4;
       dest[j] |= char_to_bin_table[(unsigned char)src[++i]] << 6;
     }
-
-  for (i = mod_size; i < size; i++)
+  if (i < size)
     {
-      const unsigned long int address = i / NUCS_PER_BYTE;
-      const unsigned int      offset  = (i % NUCS_PER_BYTE) * BITS_PER_NUC;
-      dest[address]                  |= char_to_bin_table[(unsigned int)src[i]] << offset;
+      unsigned int offset = BITS_PER_NUC;
+      dest[j]             = char_to_bin_table[(unsigned int)src[i]];
+      for (++i ; i < size; i++)
+        {
+          dest[j] |= char_to_bin_table[(unsigned int)src[i]] << offset;
+          offset  += BITS_PER_NUC;
+        }
     }
   return dest;
 }
@@ -126,23 +129,23 @@ bin_to_char_prealloc  (char                *dest,
                        unsigned long int    size)
 {
   const unsigned long int mod_size = (size / NUCS_PER_BYTE) * NUCS_PER_BYTE;
-  unsigned long int i;
+  unsigned long int       i;
+  unsigned long int       j;
+  unsigned int            offset;
 
-  for (i = 0; i < mod_size; i++)
+  for (i = 0, j = 0; i < mod_size; i++, j++)
     {
-      const unsigned long int j = i / NUCS_PER_BYTE;
       dest[i]   = (bin_to_char_table[src[j]      & 3]);
       dest[++i] = (bin_to_char_table[src[j] >> 2 & 3]);
       dest[++i] = (bin_to_char_table[src[j] >> 4 & 3]);
       dest[++i] = (bin_to_char_table[src[j] >> 6 & 3]);
     }
 
-  for (i = mod_size; i < size; i++)
+  for (offset = 0; i < size; i++)
     {
-      const unsigned long int address = i / NUCS_PER_BYTE;
-      const unsigned int      offset  = (i % NUCS_PER_BYTE) * BITS_PER_NUC;
-      const int               val     = (src[address] >> offset) & 3;
-      dest[i]                         = bin_to_char_table[val];
+      const int val = (src[j] >> offset) & 3;
+      dest[i]       = bin_to_char_table[val];
+      offset       += BITS_PER_NUC;
     }
   return dest;
 }
