@@ -9,6 +9,7 @@
 #include "ngs_binseq.h"
 #include "ngs_fasta.h"
 #include "ngs_fastq.h"
+#include "ngs_memalloc.h"
 #include "ngs_utils.h"
 
 /* fast itoa implementarion, does not zero terminate the buffer and only works
@@ -46,7 +47,7 @@ struct _CallbackData
   IterCharSeqFunc    iter_char_seq_func;
 
   GHashTable        *htable;
-  GStringChunk      *chunks;
+  MemAllocNF        *chunks;
   unsigned char     *tmp_kmer;
 
   unsigned long int  n_seqs;
@@ -159,7 +160,7 @@ main (int    argc,
   if (data.output_path)
     g_free (data.output_path);
   if (data.chunks)
-    g_string_chunk_free (data.chunks);
+    memallocnf_free (data.chunks);
   if (data.tmp_kmer)
     g_free (data.tmp_kmer);
 
@@ -221,7 +222,7 @@ parse_args (CallbackData      *data,
 
   data->k_bytes    = (data->k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
   data->tmp_kmer   = g_malloc0 (data->k_bytes);
-  data->chunks     = g_string_chunk_new (data->k_bytes);
+  data->chunks     = memallocnf_new (data->k_bytes, 1024 * 1024 * 128);
   data->input_path = (*argv)[1];
 
   word_size_bytes  = data->k_bytes;
@@ -368,7 +369,7 @@ iter_char_seq_default (CallbackData     *data,
         {
           node       = kmer_hash_node_new ();
           node->n    = 1;
-          node->kmer = (unsigned char*)g_string_chunk_insert_len (data->chunks, (char*)data->tmp_kmer, data->k_bytes);
+          node->kmer = memallocnf_add (data->chunks, data->tmp_kmer);
           g_hash_table_insert (data->htable, node->kmer, node);
         }
     }
@@ -659,9 +660,13 @@ iter_char_seq_k16 (CallbackData        *data,
         node->n++;
       else
         {
-          node       = kmer_hash_node_new ();
-          node->n    = 1;
-          node->kmer = (unsigned char*)g_string_chunk_insert_len (data->chunks, (char*)data->tmp_kmer, data->k_bytes);
+          node          = kmer_hash_node_new ();
+          node->n       = 1;
+          node->kmer    = memallocnf_get (data->chunks);
+          node->kmer[0] = data->tmp_kmer[0];
+          node->kmer[1] = data->tmp_kmer[1];
+          node->kmer[2] = data->tmp_kmer[2];
+          node->kmer[3] = data->tmp_kmer[3];
           g_hash_table_insert (data->htable, node->kmer, node);
         }
     }
@@ -757,9 +762,17 @@ iter_char_seq_k32 (CallbackData        *data,
         node->n++;
       else
         {
-          node       = kmer_hash_node_new ();
-          node->n    = 1;
-          node->kmer = (unsigned char*)g_string_chunk_insert_len (data->chunks, (char*)data->tmp_kmer, data->k_bytes);
+          node          = kmer_hash_node_new ();
+          node->n       = 1;
+          node->kmer    = memallocnf_get (data->chunks);
+          node->kmer[0] = data->tmp_kmer[0];
+          node->kmer[1] = data->tmp_kmer[1];
+          node->kmer[2] = data->tmp_kmer[2];
+          node->kmer[3] = data->tmp_kmer[3];
+          node->kmer[4] = data->tmp_kmer[4];
+          node->kmer[5] = data->tmp_kmer[5];
+          node->kmer[6] = data->tmp_kmer[6];
+          node->kmer[7] = data->tmp_kmer[7];
           g_hash_table_insert (data->htable, node->kmer, node);
         }
     }
@@ -843,7 +856,7 @@ iter_char_seq_k32p (CallbackData        *data,
         {
           node       = kmer_hash_node_new ();
           node->n    = 1;
-          node->kmer = (unsigned char*)g_string_chunk_insert_len (data->chunks, (char*)data->tmp_kmer, data->k_bytes);
+          node->kmer = memallocnf_add (data->chunks, data->tmp_kmer);
           g_hash_table_insert (data->htable, node->kmer, node);
         }
     }
