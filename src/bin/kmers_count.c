@@ -9,6 +9,7 @@
 #include "ngs_binseq.h"
 #include "ngs_fasta.h"
 #include "ngs_fastq.h"
+#include "ngs_kmerhash.h"
 #include "ngs_memalloc.h"
 #include "ngs_utils.h"
 
@@ -24,14 +25,6 @@ do {                                                \
   } while (i != 0);                                 \
 } while (0)
 
-typedef struct _KmerHashNode KmerHashNode;
-
-struct _KmerHashNode
-{
-  unsigned char    *kmer;
-  unsigned long int n;
-};
-
 typedef struct _CallbackData CallbackData;
 
 typedef int (*IterCharSeqFunc) (CallbackData        *data,
@@ -46,8 +39,7 @@ struct _CallbackData
 
   IterCharSeqFunc    iter_char_seq_func;
 
-  GHashTable        *htable;
-  MemAllocNF        *chunks;
+  KmerHashTable     *htable;
   unsigned char     *tmp_kmer;
 
   unsigned long int  n_seqs;
@@ -63,15 +55,6 @@ struct _CallbackData
 static unsigned int word_size_bytes;
 
 /* Default Functions */
-
-static int               kmer_equal_default         (const unsigned char *key1,
-                                                     const unsigned char *key2);
-
-static unsigned long int kmer_hash_default          (const unsigned char *key);
-
-static KmerHashNode*     kmer_hash_node_new         (void);
-
-static void              kmer_hash_node_free        (KmerHashNode        *hnode);
 
 static void              parse_args                 (CallbackData        *data,
                                                      int                 *argc,
@@ -93,6 +76,11 @@ static int               iter_char_seq_default      (CallbackData        *data,
 
 static void              print_results              (CallbackData        *data);
 
+static int               kmer_equal_default         (const unsigned char *key1,
+                                                     const unsigned char *key2);
+
+static unsigned long int kmer_hash_default          (const unsigned char *key);
+
 /* Optimised Functions */
 
 static int               kmer_equal_k16             (const unsigned char *key1,
@@ -112,19 +100,6 @@ static unsigned long int kmer_hash_k32              (const unsigned char *key);
 static int               iter_char_seq_k32          (CallbackData        *data,
                                                      const char          *seq,
                                                      unsigned long int    size);
-
-#if 0
-/* The two following function do not seem to make things faster */
-static unsigned long int kmer_hash_k32p             (const unsigned char *key);
-
-static int               kmer_equal_k32p            (const unsigned char *key1,
-                                                     const unsigned char *key2);
-
-/* There is a bug in this function */
-static int               iter_char_seq_k32p         (CallbackData        *data,
-                                                     const char          *seq,
-                                                     unsigned long int    size);
-#endif
 
 int
 main (int    argc,
@@ -156,11 +131,9 @@ main (int    argc,
       return 1;
     }
   if (data.htable)
-    g_hash_table_destroy (data.htable);
+    kmer_hash_table_destroy (data.htable);
   if (data.output_path)
     g_free (data.output_path);
-  if (data.chunks)
-    memallocnf_free (data.chunks);
   if (data.tmp_kmer)
     g_free (data.tmp_kmer);
 
@@ -222,51 +195,45 @@ parse_args (CallbackData      *data,
 
   data->k_bytes    = (data->k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
   data->tmp_kmer   = g_malloc0 (data->k_bytes);
-  data->chunks     = memallocnf_new (data->k_bytes, 1024 * 1024 * 128);
   data->input_path = (*argv)[1];
 
   word_size_bytes  = data->k_bytes;
 
   if (data->k == 16)
     {
-      data->htable = g_hash_table_new_full ((GHashFunc)kmer_hash_k16,
-                                            (GEqualFunc)kmer_equal_k16,
-                                            NULL,
-                                            (GDestroyNotify)kmer_hash_node_free);
+      data->htable = kmer_hash_table_new ((GHashFunc)kmer_hash_k16,
+                                          (GEqualFunc)kmer_equal_k16,
+                                          data->k_bytes);
       data->iter_char_seq_func = iter_char_seq_k16;
     }
   else if (data->k > 16 && data->k < 32)
     {
       /* TODO this could be optimised a little further.  It seems that when k
        * gets close to 32, performance drops significantly */
-      data->htable = g_hash_table_new_full ((GHashFunc)kmer_hash_k16,
-                                            (GEqualFunc)kmer_equal_default,
-                                            NULL,
-                                            (GDestroyNotify)kmer_hash_node_free);
+      data->htable = kmer_hash_table_new ((GHashFunc)kmer_hash_k16,
+                                          (GEqualFunc)kmer_equal_default,
+                                          data->k_bytes);
       data->iter_char_seq_func = iter_char_seq_default;
     }
   else if (data->k == 32)
     {
-      data->htable = g_hash_table_new_full ((GHashFunc)kmer_hash_k32,
-                                            (GEqualFunc)kmer_equal_k32,
-                                            NULL,
-                                            (GDestroyNotify)kmer_hash_node_free);
+      data->htable = kmer_hash_table_new ((GHashFunc)kmer_hash_k32,
+                                          (GEqualFunc)kmer_equal_k32,
+                                          data->k_bytes);
       data->iter_char_seq_func = iter_char_seq_k32;
     }
   else if (data->k > 32)
     {
-      data->htable = g_hash_table_new_full ((GHashFunc)kmer_hash_k32,
-                                            (GEqualFunc)kmer_equal_default,
-                                            NULL,
-                                            (GDestroyNotify)kmer_hash_node_free);
+      data->htable = kmer_hash_table_new ((GHashFunc)kmer_hash_k32,
+                                          (GEqualFunc)kmer_equal_default,
+                                          data->k_bytes);
       data->iter_char_seq_func = iter_char_seq_default;
     }
   else
     {
-      data->htable = g_hash_table_new_full ((GHashFunc)kmer_hash_default,
-                                            (GEqualFunc)kmer_equal_default,
-                                            NULL,
-                                            (GDestroyNotify)kmer_hash_node_free);
+      data->htable = kmer_hash_table_new ((GHashFunc)kmer_hash_default,
+                                          (GEqualFunc)kmer_equal_default,
+                                          data->k_bytes);
       data->iter_char_seq_func = iter_char_seq_default;
     }
 
@@ -339,7 +306,6 @@ iter_char_seq_default (CallbackData     *data,
   for (i = j - k; i < maxi; i++)
     {
       char c;
-      KmerHashNode *node;
 
       /* Skip over Ns */
       c = seq[i + data->k - 1];
@@ -363,15 +329,7 @@ iter_char_seq_default (CallbackData     *data,
           i = j - k;
         }
       char_to_bin_prealloc (data->tmp_kmer, seq + i, data->k);
-      if (g_hash_table_lookup_extended (data->htable, (char*)data->tmp_kmer, NULL, (void**)&node))
-        node->n++;
-      else
-        {
-          node       = kmer_hash_node_new ();
-          node->n    = 1;
-          node->kmer = memallocnf_add (data->chunks, data->tmp_kmer);
-          g_hash_table_insert (data->htable, node->kmer, node);
-        }
+      kmer_hash_table_insert (data->htable, data->tmp_kmer);
     }
   return 1;
 }
@@ -379,8 +337,7 @@ iter_char_seq_default (CallbackData     *data,
 static void
 print_results (CallbackData *data)
 {
-  GHashTableIter     iter;
-  unsigned char     *key;
+  KmerHashTableIter  iter;
   char              *buffer;
   char              *buffer_ptr;
   KmerHashNode      *hnode;
@@ -410,15 +367,15 @@ print_results (CallbackData *data)
 #define DIGITS_BUFF_SPACE 32
   buffer = g_alloca (data->k + DIGITS_BUFF_SPACE);
   buffer[data->k + DIGITS_BUFF_SPACE - 1] = '\n';
-  g_hash_table_iter_init (&iter, data->htable);
-  while (g_hash_table_iter_next (&iter, (void**)&key, (void**)&hnode))
+  kmer_hash_table_iter_init (&iter, data->htable);
+  while ((hnode = kmer_hash_table_iter_next (&iter)) != NULL)
     {
       int j;
       if (data->bin_out)
         {
           for (j = 0; j < data->k_bytes; j++)
             buffer[j] = hnode->kmer[j];
-          *((unsigned long int*)(buffer + j)) = GULONG_TO_BE (hnode->n);
+          *((unsigned long int*)(buffer + j)) = GULONG_TO_BE (hnode->count);
           g_io_channel_write_chars (data->output_channel,
                                     (char*)buffer, data->k_bytes + sizeof (unsigned long int),
                                     NULL, &error);
@@ -426,9 +383,8 @@ print_results (CallbackData *data)
       else
         {
           unsigned long int n;
-
           j             = 1;
-          n             = hnode->n;
+          n             = hnode->count;
           uitoa_no0 (n, buffer, DIGITS_BUFF_SPACE - 1 + data->k, buffer_ptr, j);
           *--buffer_ptr = ' ';
           j            += 1 + data->k;
@@ -461,6 +417,170 @@ print_results (CallbackData *data)
         }
     }
   g_io_channel_unref (data->output_channel);
+}
+
+static int
+iter_char_seq_k32 (CallbackData        *data,
+                   const char          *seq,
+                   unsigned long int    size)
+{
+  unsigned long int       i;
+  unsigned long int       j;
+  unsigned long int       k;
+  const unsigned long int maxi = size - data->k + 1;
+
+  if (size < data->k)
+    return 1;
+
+  /* Find the first index of a kmer without Ns */
+  for (j = 0, k = 0; j < size; j++)
+    {
+      if (seq[j] == 'N' || seq[j] == 'n')
+        k = 0;
+      else
+        k++;
+      if (k == 32)
+        {
+          j++;
+          break;
+        }
+    }
+  if (k < 32)
+    return 1;
+  char_to_bin_prealloc (data->tmp_kmer, seq + j - k, data->k);
+  data->tmp_kmer[0] <<= BITS_PER_NUC;
+  data->tmp_kmer[1] <<= BITS_PER_NUC;
+  data->tmp_kmer[2] <<= BITS_PER_NUC;
+  data->tmp_kmer[3] <<= BITS_PER_NUC;
+  data->tmp_kmer[4] <<= BITS_PER_NUC;
+  data->tmp_kmer[5] <<= BITS_PER_NUC;
+  data->tmp_kmer[6] <<= BITS_PER_NUC;
+  data->tmp_kmer[7] <<= BITS_PER_NUC;
+  for (i = j - k; i < maxi; i++)
+    {
+      char c;
+
+      /* Skip over Ns */
+      c = seq[i + data->k - 1];
+      if (c == 'N' || c == 'n')
+        {
+          k = 0;
+          for (j = i + 32; j < size; j++)
+            {
+              if (seq[j] == 'N' || seq[j] == 'n')
+                k = 0;
+              else
+                k++;
+              if (k == 32)
+                {
+                  j++;
+                  break;
+                }
+            }
+          if (k < 32)
+            return 1;
+          i = j - k;
+          char_to_bin_prealloc (data->tmp_kmer, seq + i, data->k);
+        }
+      else
+        {
+          data->tmp_kmer[0] >>= BITS_PER_NUC;
+          data->tmp_kmer[1] >>= BITS_PER_NUC;
+          data->tmp_kmer[2] >>= BITS_PER_NUC;
+          data->tmp_kmer[3] >>= BITS_PER_NUC;
+          data->tmp_kmer[4] >>= BITS_PER_NUC;
+          data->tmp_kmer[5] >>= BITS_PER_NUC;
+          data->tmp_kmer[6] >>= BITS_PER_NUC;
+          data->tmp_kmer[7] >>= BITS_PER_NUC;
+
+          data->tmp_kmer[0] |= char_to_bin_table[(unsigned char)seq[i +  3]] << (BITS_PER_BYTE - BITS_PER_NUC);
+          data->tmp_kmer[1] |= char_to_bin_table[(unsigned char)seq[i +  7]] << (BITS_PER_BYTE - BITS_PER_NUC);
+          data->tmp_kmer[2] |= char_to_bin_table[(unsigned char)seq[i + 11]] << (BITS_PER_BYTE - BITS_PER_NUC);
+          data->tmp_kmer[3] |= char_to_bin_table[(unsigned char)seq[i + 15]] << (BITS_PER_BYTE - BITS_PER_NUC);
+          data->tmp_kmer[4] |= char_to_bin_table[(unsigned char)seq[i + 19]] << (BITS_PER_BYTE - BITS_PER_NUC);
+          data->tmp_kmer[5] |= char_to_bin_table[(unsigned char)seq[i + 23]] << (BITS_PER_BYTE - BITS_PER_NUC);
+          data->tmp_kmer[6] |= char_to_bin_table[(unsigned char)seq[i + 27]] << (BITS_PER_BYTE - BITS_PER_NUC);
+          data->tmp_kmer[7] |= char_to_bin_table[(unsigned char)seq[i + 31]] << (BITS_PER_BYTE - BITS_PER_NUC);
+        }
+      kmer_hash_table_insert (data->htable, data->tmp_kmer);
+    }
+  return 1;
+}
+
+static int
+iter_char_seq_k16 (CallbackData        *data,
+                   const char          *seq,
+                   unsigned long int    size)
+{
+  unsigned long int       i;
+  unsigned long int       j;
+  unsigned long int       k;
+  const unsigned long int maxi = size - data->k + 1;
+
+  if (size < data->k)
+    return 1;
+
+  /* Find the first index of a kmer without Ns */
+  for (j = 0, k = 0; j < size; j++)
+    {
+      if (seq[j] == 'N' || seq[j] == 'n')
+        k = 0;
+      else
+        k++;
+      if (k == 16)
+        {
+          j++;
+          break;
+        }
+    }
+  if (k < 16)
+    return 1;
+  char_to_bin_prealloc (data->tmp_kmer, seq + j - k, data->k);
+  data->tmp_kmer[0] <<= BITS_PER_NUC;
+  data->tmp_kmer[1] <<= BITS_PER_NUC;
+  data->tmp_kmer[2] <<= BITS_PER_NUC;
+  data->tmp_kmer[3] <<= BITS_PER_NUC;
+  for (i = j - k; i < maxi; i++)
+    {
+      char c;
+
+      /* Skip over Ns */
+      c = seq[i + data->k - 1];
+      if (c == 'N' || c == 'n')
+        {
+          k = 0;
+          for (j = i + 16; j < size; j++)
+            {
+              if (seq[j] == 'N' || seq[j] == 'n')
+                k = 0;
+              else
+                k++;
+              if (k == 16)
+                {
+                  j++;
+                  break;
+                }
+            }
+          if (k < 16)
+            return 1;
+          i = j - k;
+          char_to_bin_prealloc (data->tmp_kmer, seq + i, data->k);
+        }
+      else
+        {
+          data->tmp_kmer[0] >>= BITS_PER_NUC;
+          data->tmp_kmer[1] >>= BITS_PER_NUC;
+          data->tmp_kmer[2] >>= BITS_PER_NUC;
+          data->tmp_kmer[3] >>= BITS_PER_NUC;
+
+          data->tmp_kmer[0] |= char_to_bin_table[(unsigned char)seq[i +  3]] << (BITS_PER_BYTE - BITS_PER_NUC);
+          data->tmp_kmer[1] |= char_to_bin_table[(unsigned char)seq[i +  7]] << (BITS_PER_BYTE - BITS_PER_NUC);
+          data->tmp_kmer[2] |= char_to_bin_table[(unsigned char)seq[i + 11]] << (BITS_PER_BYTE - BITS_PER_NUC);
+          data->tmp_kmer[3] |= char_to_bin_table[(unsigned char)seq[i + 15]] << (BITS_PER_BYTE - BITS_PER_NUC);
+        }
+      kmer_hash_table_insert (data->htable, data->tmp_kmer);
+    }
+  return 1;
 }
 
 static unsigned long int
@@ -507,25 +627,6 @@ kmer_equal_default (const unsigned char *key1,
   return 1;
 }
 
-static KmerHashNode*
-kmer_hash_node_new (void)
-{
-  KmerHashNode *hnode;
-
-  hnode = g_slice_new0 (KmerHashNode);
-
-  return hnode;
-}
-
-static void
-kmer_hash_node_free (KmerHashNode *hnode)
-{
-  if (hnode)
-    g_slice_free (KmerHashNode, hnode);
-}
-
-/* Optimised Functions */
-
 static int
 kmer_equal_k16 (const unsigned char *key1,
                 const unsigned char *key2)
@@ -556,313 +657,6 @@ kmer_hash_k32 (const unsigned char *key)
   guint32 *k = (guint32*) key;
   return (k[0] ^ k[1]) * 2654435769U;
 }
-
-#if 0
-/*The hashing function used here does not seem very good */
-static unsigned long int
-kmer_hash_k32p (const unsigned char *key)
-{
-  guint32 *k = (guint32*) key;
-  guint32 hash = (k[0] ^ k[1]);
-  unsigned int i = 16;
-  do
-    {
-      hash <<= 8;
-      hash  |= key[i];
-    }
-  while (++i < word_size_bytes);
-  return hash * 2654435769U;
-}
-
-/* For sizes <= 64, this does not make things faster */
-static int
-kmer_equal_k32p (const unsigned char *key1,
-                 const unsigned char *key2)
-{
-  return memcmp ((char*)key1, (char*)key2, word_size_bytes) == 0;
-}
-#endif
-
-static int
-iter_char_seq_k16 (CallbackData        *data,
-                   const char          *seq,
-                   unsigned long int    size)
-{
-  unsigned long int       i;
-  unsigned long int       j;
-  unsigned long int       k;
-  const unsigned long int maxi = size - data->k + 1;
-
-  if (size < data->k)
-    return 1;
-
-  /* Find the first index of a kmer without Ns */
-  for (j = 0, k = 0; j < size; j++)
-    {
-      if (seq[j] == 'N' || seq[j] == 'n')
-        k = 0;
-      else
-        k++;
-      if (k == 16)
-        {
-          j++;
-          break;
-        }
-    }
-  if (k < 16)
-    return 1;
-  char_to_bin_prealloc (data->tmp_kmer, seq + j - k, data->k);
-  data->tmp_kmer[0] <<= BITS_PER_NUC;
-  data->tmp_kmer[1] <<= BITS_PER_NUC;
-  data->tmp_kmer[2] <<= BITS_PER_NUC;
-  data->tmp_kmer[3] <<= BITS_PER_NUC;
-  for (i = j - k; i < maxi; i++)
-    {
-      char c;
-      KmerHashNode *node;
-
-      /* Skip over Ns */
-      c = seq[i + data->k - 1];
-      if (c == 'N' || c == 'n')
-        {
-          k = 0;
-          for (j = i + 16; j < size; j++)
-            {
-              if (seq[j] == 'N' || seq[j] == 'n')
-                k = 0;
-              else
-                k++;
-              if (k == 16)
-                {
-                  j++;
-                  break;
-                }
-            }
-          if (k < 16)
-            return 1;
-          i = j - k;
-          char_to_bin_prealloc (data->tmp_kmer, seq + i, data->k);
-        }
-      else
-        {
-          data->tmp_kmer[0] >>= BITS_PER_NUC;
-          data->tmp_kmer[1] >>= BITS_PER_NUC;
-          data->tmp_kmer[2] >>= BITS_PER_NUC;
-          data->tmp_kmer[3] >>= BITS_PER_NUC;
-
-          data->tmp_kmer[0] |= char_to_bin_table[(unsigned char)seq[i +  3]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[1] |= char_to_bin_table[(unsigned char)seq[i +  7]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[2] |= char_to_bin_table[(unsigned char)seq[i + 11]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[3] |= char_to_bin_table[(unsigned char)seq[i + 15]] << (BITS_PER_BYTE - BITS_PER_NUC);
-        }
-
-      if (g_hash_table_lookup_extended (data->htable, (char*)data->tmp_kmer, NULL, (void**)&node))
-        node->n++;
-      else
-        {
-          node          = kmer_hash_node_new ();
-          node->n       = 1;
-          node->kmer    = memallocnf_get (data->chunks);
-          node->kmer[0] = data->tmp_kmer[0];
-          node->kmer[1] = data->tmp_kmer[1];
-          node->kmer[2] = data->tmp_kmer[2];
-          node->kmer[3] = data->tmp_kmer[3];
-          g_hash_table_insert (data->htable, node->kmer, node);
-        }
-    }
-  return 1;
-}
-
-static int
-iter_char_seq_k32 (CallbackData        *data,
-                   const char          *seq,
-                   unsigned long int    size)
-{
-  unsigned long int       i;
-  unsigned long int       j;
-  unsigned long int       k;
-  const unsigned long int maxi = size - data->k + 1;
-
-  if (size < data->k)
-    return 1;
-
-  /* Find the first index of a kmer without Ns */
-  for (j = 0, k = 0; j < size; j++)
-    {
-      if (seq[j] == 'N' || seq[j] == 'n')
-        k = 0;
-      else
-        k++;
-      if (k == 32)
-        {
-          j++;
-          break;
-        }
-    }
-  if (k < 32)
-    return 1;
-  char_to_bin_prealloc (data->tmp_kmer, seq + j - k, data->k);
-  data->tmp_kmer[0] <<= BITS_PER_NUC;
-  data->tmp_kmer[1] <<= BITS_PER_NUC;
-  data->tmp_kmer[2] <<= BITS_PER_NUC;
-  data->tmp_kmer[3] <<= BITS_PER_NUC;
-  data->tmp_kmer[4] <<= BITS_PER_NUC;
-  data->tmp_kmer[5] <<= BITS_PER_NUC;
-  data->tmp_kmer[6] <<= BITS_PER_NUC;
-  data->tmp_kmer[7] <<= BITS_PER_NUC;
-  for (i = j - k; i < maxi; i++)
-    {
-      char c;
-      KmerHashNode *node;
-
-      /* Skip over Ns */
-      c = seq[i + data->k - 1];
-      if (c == 'N' || c == 'n')
-        {
-          k = 0;
-          for (j = i + 32; j < size; j++)
-            {
-              if (seq[j] == 'N' || seq[j] == 'n')
-                k = 0;
-              else
-                k++;
-              if (k == 32)
-                {
-                  j++;
-                  break;
-                }
-            }
-          if (k < 32)
-            return 1;
-          i = j - k;
-          char_to_bin_prealloc (data->tmp_kmer, seq + i, data->k);
-        }
-      else
-        {
-          data->tmp_kmer[0] >>= BITS_PER_NUC;
-          data->tmp_kmer[1] >>= BITS_PER_NUC;
-          data->tmp_kmer[2] >>= BITS_PER_NUC;
-          data->tmp_kmer[3] >>= BITS_PER_NUC;
-          data->tmp_kmer[4] >>= BITS_PER_NUC;
-          data->tmp_kmer[5] >>= BITS_PER_NUC;
-          data->tmp_kmer[6] >>= BITS_PER_NUC;
-          data->tmp_kmer[7] >>= BITS_PER_NUC;
-
-          data->tmp_kmer[0] |= char_to_bin_table[(unsigned char)seq[i +  3]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[1] |= char_to_bin_table[(unsigned char)seq[i +  7]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[2] |= char_to_bin_table[(unsigned char)seq[i + 11]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[3] |= char_to_bin_table[(unsigned char)seq[i + 15]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[4] |= char_to_bin_table[(unsigned char)seq[i + 19]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[5] |= char_to_bin_table[(unsigned char)seq[i + 23]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[6] |= char_to_bin_table[(unsigned char)seq[i + 27]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[7] |= char_to_bin_table[(unsigned char)seq[i + 31]] << (BITS_PER_BYTE - BITS_PER_NUC);
-        }
-
-      if (g_hash_table_lookup_extended (data->htable, (char*)data->tmp_kmer, NULL, (void**)&node))
-        node->n++;
-      else
-        {
-          node          = kmer_hash_node_new ();
-          node->n       = 1;
-          node->kmer    = memallocnf_get (data->chunks);
-          node->kmer[0] = data->tmp_kmer[0];
-          node->kmer[1] = data->tmp_kmer[1];
-          node->kmer[2] = data->tmp_kmer[2];
-          node->kmer[3] = data->tmp_kmer[3];
-          node->kmer[4] = data->tmp_kmer[4];
-          node->kmer[5] = data->tmp_kmer[5];
-          node->kmer[6] = data->tmp_kmer[6];
-          node->kmer[7] = data->tmp_kmer[7];
-          g_hash_table_insert (data->htable, node->kmer, node);
-        }
-    }
-  return 1;
-}
-
-/* There is a bug in this function.
- * I can't find it, and it does not seem to make things much faster anyway ...
- */
-#if 0
-static int
-iter_char_seq_k32p (CallbackData        *data,
-                    const char          *seq,
-                    unsigned long int    size)
-{
-  unsigned long int       i;
-  unsigned long int       j;
-  unsigned int            k;
-  unsigned int            l;
-  const unsigned long int maxi = size - data->k + 1;
-
-  if (size < data->k)
-    return 1;
-
-  /* Find the first index of a kmer without Ns */
-  for (j = 0, k = 0; j < size; j++)
-    {
-      if (seq[j] == 'N' || seq[j] == 'n')
-        k = 0;
-      else
-        k++;
-      if (k == data->k)
-        {
-          j++;
-          break;
-        }
-    }
-  if (k < data->k)
-    return 1;
-  char_to_bin_prealloc (data->tmp_kmer, seq + j - k, data->k);
-  for (l = 0; l < data->k_bytes; l++)
-    data->tmp_kmer[l] <<= BITS_PER_NUC;
-  for (i = j - k; i < maxi; i++)
-    {
-      char c;
-      KmerHashNode *node;
-
-      /* Skip over Ns */
-      c = seq[i + data->k - 1];
-      if (c == 'N' || c == 'n')
-        {
-          k = 0;
-          for (j = i + data->k; j < size; j++)
-            {
-              if (seq[j] == 'N' || seq[j] == 'n')
-                k = 0;
-              else
-                k++;
-              if (k == data->k)
-                {
-                  j++;
-                  break;
-                }
-            }
-          if (k < data->k)
-            return 1;
-          i = j - k;
-          char_to_bin_prealloc (data->tmp_kmer, seq + i, data->k);
-        }
-      else
-        {
-          for (l = 0; l < data->k_bytes; l++)
-            data->tmp_kmer[l] >>= BITS_PER_NUC;
-          for (l = 0; l < data->k_bytes; l++)
-            data->tmp_kmer[l] |= char_to_bin_table[(unsigned char)seq[i +  (l * NUCS_PER_BYTE) + 3]] << (BITS_PER_BYTE - BITS_PER_NUC);
-        }
-
-      if (g_hash_table_lookup_extended (data->htable, (char*)data->tmp_kmer, NULL, (void**)&node))
-        node->n++;
-      else
-        {
-          node       = kmer_hash_node_new ();
-          node->n    = 1;
-          node->kmer = memallocnf_add (data->chunks, data->tmp_kmer);
-          g_hash_table_insert (data->htable, node->kmer, node);
-        }
-    }
-  return 1;
-}
-#endif
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */

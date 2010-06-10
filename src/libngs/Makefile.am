@@ -61,7 +61,9 @@ libngs_la_SOURCES = \
 	ngs_binseq.c \
 	ngs_binseq_tables.c \
 	ngs_memalloc.h \
-	ngs_memalloc.c
+	ngs_memalloc.c \
+	ngs_kmerhash.h \
+	ngs_kmerhash.c
 
 CLEANFILES = \
 	lex.FlexFasta_.c \
