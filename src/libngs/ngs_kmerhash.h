@@ -9,6 +9,11 @@
 
 #include "ngs_memalloc.h"
 
+
+/***************************/
+/* Generic kmer hash table */
+/***************************/
+
 typedef struct _KmerHashNode KmerHashNode;
 
 struct _KmerHashNode
@@ -64,6 +69,57 @@ void           kmer_hash_table_iter_init           (KmerHashTableIter   *iter,
                                                     KmerHashTable       *hash_table);
 
 KmerHashNode*  kmer_hash_table_iter_next           (KmerHashTableIter   *iter);
+
+/*******************************************************/
+/* Kmer Hash table for kmers up to 32 nucleotides long */
+/*******************************************************/
+
+typedef struct _KmerHashNodeK32 KmerHashNodeK32;
+
+struct _KmerHashNodeK32
+{
+  guint64 kmer;
+  gulong  key_hash;
+  gulong  count;
+};
+
+typedef struct _KmerHashTableK32  KmerHashTableK32;
+
+struct _KmerHashTableK32
+{
+  KmerHashNodeK32 *nodes;
+
+  glong            size;
+  glong            mod;
+  gulong           mask;
+  glong            nnodes;
+  glong            noccupied;  /* nnodes + tombstones */
+
+  gsize            kmer_bytes;
+};
+
+typedef struct _KmerHashTableK32Iter KmerHashTableK32Iter;
+
+struct _KmerHashTableK32Iter
+{
+  KmerHashTableK32 *hash_table;
+  glong             position;
+};
+
+KmerHashTableK32* kmer_hash_table_k32_new                 (gsize                 kmer_bytes);
+
+void              kmer_hash_table_k32_destroy             (KmerHashTableK32     *hash_table);
+
+void              kmer_hash_table_k32_insert              (KmerHashTableK32     *hash_table,
+                                                           guint64               kmer);
+
+KmerHashNodeK32*  kmer_hash_table_k32_lookup              (KmerHashTableK32     *hash_table,
+                                                           guint64               kmer);
+
+void              kmer_hash_table_k32_iter_init           (KmerHashTableK32Iter *iter,
+                                                           KmerHashTableK32     *hash_table);
+
+KmerHashNodeK32*  kmer_hash_table_k32_iter_next           (KmerHashTableK32Iter *iter);
 
 #endif /* __NGS_KMERHASH_H__ */
 

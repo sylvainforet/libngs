@@ -10,7 +10,7 @@
  * lower than the table size) used to find the initial bucket. Probing
  * then works modulo 2^n. The prime modulo is necessary to get a
  * good distribution with poor hash functions. */
-static const glong prime_mod [] =
+static const glong prime_mod[] =
 {
   1ul,          /* For 1 << 0 */
   2ul,
@@ -291,7 +291,11 @@ void
 kmer_hash_table_destroy (KmerHashTable *hash_table)
 {
   if (hash_table)
-    g_slice_free (KmerHashTable, hash_table);
+    {
+      if (hash_table->allocator)
+        memallocnf_free (hash_table->allocator);
+      g_slice_free (KmerHashTable, hash_table);
+    }
 }
 
 void
@@ -320,6 +324,245 @@ kmer_hash_table_insert (KmerHashTable *hash_table,
           /* We replaced an empty node, and not a tombstone */
           hash_table->noccupied++;
           kmer_hash_table_maybe_resize (hash_table);
+        }
+    }
+}
+
+/********************/
+/* KmerHashTableK32 */
+/********************/
+
+static void
+kmer_hash_table_k32_set_shift (KmerHashTableK32 *hash_table,
+                               gint              shift)
+{
+  gint i;
+  gulong mask = 0;
+
+  hash_table->size = 1 << shift;
+  hash_table->mod  = prime_mod[shift];
+
+  for (i = 0; i < shift; i++)
+    {
+      mask <<= 1;
+      mask |= 1;
+    }
+
+  hash_table->mask = mask;
+}
+
+static void
+kmer_hash_table_k32_set_shift_from_size (KmerHashTableK32 *hash_table,
+                                         glong             size)
+{
+  gint shift;
+
+  shift = kmer_hash_table_find_closest_shift (size);
+  shift = MAX (shift, HASH_TABLE_MIN_SHIFT);
+
+  kmer_hash_table_k32_set_shift (hash_table, shift);
+}
+
+KmerHashNodeK32*
+kmer_hash_table_k32_lookup (KmerHashTableK32    *hash_table,
+                            guint64              kmer)
+{
+  KmerHashNodeK32 *node;
+  gulong           hash_value;
+  gulong           node_index;
+  gulong           step = 0;
+
+  /* Empty buckets have hash_value set to 0, and for tombstones, it's 1.
+   * We need to make sure our hash value is not one of these. */
+  hash_value =  ((kmer & 0xffffffff) ^ (kmer >> 32)) * 2654435769U;
+  if (G_UNLIKELY (hash_value <= 1))
+    hash_value = 2;
+
+  node_index = hash_value % hash_table->mod;
+  node       = &hash_table->nodes[node_index];
+
+  while (node->key_hash)
+    {
+      if (node->kmer == kmer)
+        break;
+      step++;
+      node_index += step;
+      node_index &= hash_table->mask;
+      node        = &hash_table->nodes[node_index];
+    }
+  return node->key_hash ? node : NULL;
+}
+
+
+static inline gulong
+kmer_hash_table_k32_lookup_node_for_insertion (KmerHashTableK32    *hash_table,
+                                               guint64              kmer,
+                                               gulong              *hash_return)
+{
+  KmerHashNodeK32 *node;
+  gulong           node_index;
+  gulong           hash_value;
+  gulong           first_tombstone = 0;
+  gboolean         have_tombstone  = FALSE;
+  gulong           step            = 0;
+
+  /* Empty buckets have hash_value set to 0, and for tombstones, it's 1.
+   * We need to make sure our hash value is not one of these. */
+  hash_value =  ((kmer & 0xffffffff) ^ (kmer >> 32)) * 2654435769U;
+  if (G_UNLIKELY (hash_value <= 1))
+    hash_value = 2;
+
+  *hash_return = hash_value;
+  node_index   = hash_value % hash_table->mod;
+  node         = &hash_table->nodes[node_index];
+
+  while (node->key_hash)
+    {
+      if (node->kmer == kmer)
+        return node_index;
+      else if (node->key_hash == 1 && !have_tombstone)
+        {
+          first_tombstone = node_index;
+          have_tombstone  = TRUE;
+        }
+      step++;
+      node_index += step;
+      node_index &= hash_table->mask;
+      node        = &hash_table->nodes[node_index];
+    }
+  if (have_tombstone)
+    return first_tombstone;
+
+  return node_index;
+}
+
+static void
+kmer_hash_table_k32_resize (KmerHashTableK32 *hash_table)
+{
+  KmerHashNodeK32 *new_nodes;
+  glong            old_size;
+  glong            i;
+
+  old_size = hash_table->size;
+  kmer_hash_table_k32_set_shift_from_size (hash_table, hash_table->nnodes * 2);
+  new_nodes = g_new0 (KmerHashNodeK32, hash_table->size);
+
+  for (i = 0; i < old_size; i++)
+    {
+      KmerHashNodeK32 *node = &hash_table->nodes[i];
+      KmerHashNodeK32 *new_node;
+      gulong           hash_val;
+      gulong           step = 0;
+
+      if (node->key_hash <= 1)
+        continue;
+
+      hash_val = node->key_hash % hash_table->mod;
+      new_node = &new_nodes[hash_val];
+
+      while (new_node->key_hash)
+        {
+          step++;
+          hash_val += step;
+          hash_val &= hash_table->mask;
+          new_node  = &new_nodes[hash_val];
+        }
+      *new_node = *node;
+    }
+  g_free (hash_table->nodes);
+  hash_table->nodes = new_nodes;
+  hash_table->noccupied = hash_table->nnodes;
+}
+
+static inline void
+kmer_hash_table_k32_maybe_resize (KmerHashTableK32 *hash_table)
+{
+  glong noccupied = hash_table->noccupied;
+  glong size      = hash_table->size;
+
+  if ((size > hash_table->nnodes * 4 && size > 1 << HASH_TABLE_MIN_SHIFT) ||
+      (size <= noccupied + (noccupied / 16)))
+    kmer_hash_table_k32_resize (hash_table);
+}
+
+KmerHashTableK32*
+kmer_hash_table_k32_new (gsize kmer_bytes)
+{
+  KmerHashTableK32 *hash_table;
+
+  hash_table                     = g_slice_new (KmerHashTableK32);
+  kmer_hash_table_k32_set_shift (hash_table, HASH_TABLE_MIN_SHIFT);
+  hash_table->nnodes             = 0;
+  hash_table->noccupied          = 0;
+  hash_table->nodes              = g_new0 (KmerHashNodeK32, hash_table->size);
+  hash_table->kmer_bytes         = kmer_bytes;
+
+  return hash_table;
+}
+
+void
+kmer_hash_table_k32_iter_init (KmerHashTableK32Iter *iter,
+                               KmerHashTableK32     *hash_table)
+{
+  iter->hash_table = hash_table;
+  iter->position   = -1;
+}
+
+KmerHashNodeK32*
+kmer_hash_table_k32_iter_next (KmerHashTableK32Iter *iter)
+{
+  KmerHashNodeK32 *node     = NULL;
+  glong            position = iter->position;
+
+  do
+    {
+      position++;
+      if (position >= iter->hash_table->size)
+        {
+          iter->position = position;
+          return NULL;
+        }
+      node = &iter->hash_table->nodes[position];
+    }
+  while (node->key_hash <= 1);
+  iter->position = position;
+
+  return node;
+}
+
+void
+kmer_hash_table_k32_destroy (KmerHashTableK32 *hash_table)
+{
+  if (hash_table)
+    g_slice_free (KmerHashTableK32, hash_table);
+}
+
+void
+kmer_hash_table_k32_insert (KmerHashTableK32 *hash_table,
+                            guint64           kmer)
+{
+  KmerHashNodeK32 *node;
+  gulong           node_index;
+  gulong           key_hash;
+  gulong           old_hash;
+
+  node_index = kmer_hash_table_k32_lookup_node_for_insertion (hash_table, kmer, &key_hash);
+  node       = &hash_table->nodes[node_index];
+  old_hash   = node->key_hash;
+
+  if (old_hash > 1)
+    node->count++;
+  else
+    {
+      node->kmer     = kmer;
+      node->count    = 1;
+      node->key_hash = key_hash;
+      hash_table->nnodes++;
+      if (old_hash == 0)
+        {
+          /* We replaced an empty node, and not a tombstone */
+          hash_table->noccupied++;
+          kmer_hash_table_k32_maybe_resize (hash_table);
         }
     }
 }
