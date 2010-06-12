@@ -20,6 +20,8 @@ struct _CallbackData
   int         tot_trim;
   int         qual;
   int         len;
+  int         win;
+  int         qwin;
   int         keep;
 
   int         use_stdout: 1;
@@ -92,6 +94,8 @@ parse_args (CallbackData      *data,
       {"end",   'e', 0, G_OPTION_ARG_INT,  &data->end,   "Number of positions to trim at the end", NULL},
       {"qual",  'q', 0, G_OPTION_ARG_INT,  &data->qual,  "Minimum quality", NULL},
       {"len",   'l', 0, G_OPTION_ARG_INT,  &data->len,   "Minimum length", NULL},
+      {"win",   'w', 0, G_OPTION_ARG_INT,  &data->win,   "Size of the slidding window", NULL},
+      {"qwin",  'n', 0, G_OPTION_ARG_INT,  &data->qwin,  "Minimum sliding window mean quality", NULL},
       {"keep",  'k', 0, G_OPTION_ARG_NONE, &data->keep,  "Keep an pseudo-entry for too small reads", NULL},
       {NULL}
     };
@@ -105,6 +109,8 @@ parse_args (CallbackData      *data,
   data->end            = 0;
   data->qual           = 0;
   data->len            = 0;
+  data->win            = 0;
+  data->qwin           = 0;
   data->keep           = 0;
 
   context = g_option_context_new ("FILE - trims fastq reads");
@@ -123,6 +129,19 @@ parse_args (CallbackData      *data,
       exit (1);
     }
   data->input_path = (*argv)[1];
+  if (data->win > data->len)
+    {
+      g_printerr ("[ERROR] Size of sliding window (%d) exceeds minimum length (%d)\n",
+                  data->win, data->len);
+      exit (1);
+    }
+  if (data->qwin > 0 && data->qual > data->qwin)
+    {
+      g_printerr ("[ERROR] Minimum quality (%d) exceeds sliding window quality (%d)\n",
+                  data->qual, data->qwin);
+      exit (1);
+    }
+  data->tot_trim = data->start + data->end;
 
   if (data->output_path[0] == '-' && data->output_path[1] == '\0')
     data->output_channel = g_io_channel_unix_new (STDOUT_FILENO);
@@ -136,7 +155,6 @@ parse_args (CallbackData      *data,
           exit (1);
         }
     }
-  data->tot_trim = data->start + data->end;
 }
 
 static int
@@ -156,29 +174,81 @@ iter_func (FastqSeq     *fastq,
 
   end     = fastq->size - data->end;
   start   = data->start;
+  /* Low quality bases */
   if (data->qual > 0)
     {
-      int idx_max = start;
+      int max_idx = start;
       int max_len = 0;
-      int idx_tmp = start;
+      int tmp_idx = start;
       int i;
       for (i = start; i < end; i++)
         if (fastq->qual[i] - FASTQ_QUAL_0 < data->qual)
           {
-            if (i - idx_tmp > max_len)
+            if (i - tmp_idx > max_len)
               {
-                idx_max = idx_tmp;
-                max_len = i - idx_tmp;
+                max_idx = tmp_idx;
+                max_len = i - tmp_idx;
               }
-            idx_tmp = i + 1;
+            tmp_idx = i + 1;
           }
-      if (i - idx_tmp > max_len)
+      if (i - tmp_idx > max_len)
         {
-          idx_max = idx_tmp;
-          max_len = i - idx_tmp;
+          max_idx = tmp_idx;
+          max_len = i - tmp_idx;
         }
-      start = idx_max;
-      end   = idx_max + max_len;
+      start = max_idx;
+      end   = max_idx + max_len;
+    }
+  /* Sliding window */
+  if (data->qwin > 0 && data->win > 0 && end - start >= data->len)
+    {
+      int tmp_len  = 0;
+      int max_len  = 0;
+      int win_qual = 0;
+      int good_win = 0;
+      int max_idx  = start;
+      int i;
+      /* Initialise window */
+      for (i = start + data->win - 1; i >= start; i--)
+        win_qual += fastq->qual[i] - FASTQ_QUAL_0;
+      for (i = start; i <= end - data->win; i++)
+        {
+          if (i > start)
+            {
+              win_qual -= fastq->qual[i - 1] - FASTQ_QUAL_0;
+              win_qual += fastq->qual[i + data->win - 1] - FASTQ_QUAL_0;
+            }
+          if ((win_qual / data->win) < data->qwin) /* Bad quality window */
+            {
+              if (good_win)
+                {
+                  good_win = 0;
+                  if (tmp_len > max_len)
+                    {
+                      max_len = tmp_len;
+                      max_idx = i + data->win - max_len - 1;
+                    }
+                  tmp_len = 0;
+                }
+            }
+          else /* Good quality window */
+            {
+              if (good_win)
+                tmp_len++;
+              else
+                {
+                  tmp_len  = data->win;
+                  good_win = 1;
+                }
+            }
+        }
+      if (good_win && tmp_len > max_len)
+        {
+          max_len = tmp_len;
+          max_idx = i + data->win - max_len - 1;
+        }
+      start = max_idx;
+      end   = max_idx + max_len;
     }
 
   if (end <= start || end - start < data->len)
