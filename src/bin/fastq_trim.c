@@ -199,6 +199,11 @@ iter_func (FastqSeq     *fastq,
       start = max_idx;
       end   = max_idx + max_len;
     }
+  /* TODO
+   * This code for sliding window is not optimised, this could use some work.
+   * I should also make sure that everything is consistent regarding the
+   * various combinations of options.
+   */
   /* Sliding window */
   if (data->qwin > 0 && data->win > 0 && end - start >= data->len)
     {
