@@ -129,6 +129,8 @@ parse_args (CallbackData      *data,
       exit (1);
     }
   data->input_path = (*argv)[1];
+  if (data->len == 0 && data->win > 0)
+    data->len = data->win;
   if (data->win > data->len)
     {
       g_printerr ("[ERROR] Size of sliding window (%d) exceeds minimum length (%d)\n",

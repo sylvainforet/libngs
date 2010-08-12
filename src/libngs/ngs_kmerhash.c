@@ -75,7 +75,7 @@ kmer_hash_table_set_shift (KmerHashTable *hash_table,
 }
 
 static gint
-kmer_hash_table_find_closest_shift (gint n)
+kmer_hash_table_find_closest_shift (glong n)
 {
   gint i;
 
