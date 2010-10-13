@@ -31,6 +31,7 @@ struct _CallbackData
   int                min_qual;
   int                max_chh;
   int                verbose;
+  int                check_strand;
   int                print_letter;
   int                print_all;
 
@@ -38,6 +39,7 @@ struct _CallbackData
   unsigned long int  n_bad_orientation;
   unsigned long int  n_nqs_filtered;
 
+  unsigned int       trim_tag;
   unsigned int       nqs_each_side;
   unsigned int       nqs_mismatches;
   unsigned int       nqs_neighbor_qual;
@@ -126,8 +128,10 @@ parse_args (CallbackData      *data,
       {"add",       'a', 0, G_OPTION_ARG_FILENAME,       &data->add_path,    "Add results to this file", NULL},
 
       /* Mapping options */
-      {"min_qual", 'm', 0, G_OPTION_ARG_INT, &data->min_qual, "Minimum base quality", NULL},
-      {"max_chh",  'M', 0, G_OPTION_ARG_INT, &data->max_chh,  "Maximum number of consecutive CHH per read", NULL},
+      {"min_qual",     'm', 0, G_OPTION_ARG_INT,  &data->min_qual,     "Minimum base quality", NULL},
+      {"max_chh",      'M', 0, G_OPTION_ARG_INT,  &data->max_chh,      "Maximum number of consecutive CHH per read", NULL},
+      {"trim_tag",     'T', 0, G_OPTION_ARG_INT,  &data->trim_tag,     "Number of tag letters to trim", NULL},
+      {"check_strand", 's', 0, G_OPTION_ARG_NONE, &data->check_strand, "Check strand orientation", NULL},
 
       {"nqs_each_side",     's', 0, G_OPTION_ARG_INT, &data->nqs_each_side,     "Number of bases to consider on each side for the NQS criterion", NULL},
       {"nqs_mismatches",    't', 0, G_OPTION_ARG_INT, &data->nqs_mismatches,    "Maximum number of mismatches for the NQS criterion", NULL},
@@ -149,9 +153,11 @@ parse_args (CallbackData      *data,
   data->add_path          = NULL;
   data->min_qual          = 0;
   data->max_chh           = 0;
+  data->check_strand      = 0;
   data->verbose           = 0;
   data->print_letter      = 0;
   data->print_all         = 0;
+  data->trim_tag          = 0;
   data->n_chh_filtered    = 0;
   data->n_bad_orientation = 0;
   data->n_nqs_filtered    = 0;
@@ -234,17 +240,24 @@ iter_bsq_func (BsqRecord    *rec,
                CallbackData *data)
 {
   int name_len;
+  int strand_ok = 1;
 
   name_len = strlen (rec->name);
-  if (rec->flag == BSQ_MAP_UM &&
-      ((rec->name[name_len - 2] == '/' &&
-       rec->name[name_len - 1] == '1' &&
-       (rec->strand == BSQ_STRAND_W ||
-        rec->strand == BSQ_STRAND_C)) ||
-      (rec->name[name_len - 2] == '/' &&
-       rec->name[name_len - 1] == '2' &&
-       (rec->strand == BSQ_STRAND_WC ||
-        rec->strand == BSQ_STRAND_CC))))
+  if (data->check_strand)
+    {
+      strand_ok = 0;
+      if (rec->flag == BSQ_MAP_UM &&
+          ((rec->name[name_len - 2] == '/' &&
+           rec->name[name_len - 1] == '1' &&
+           (rec->strand == BSQ_STRAND_W ||
+            rec->strand == BSQ_STRAND_C)) ||
+          (rec->name[name_len - 2] == '/' &&
+           rec->name[name_len - 1] == '2' &&
+           (rec->strand == BSQ_STRAND_WC ||
+            rec->strand == BSQ_STRAND_CC))))
+        strand_ok = 1;
+    }
+  if (strand_ok)
     {
       SeqDBElement *read_elem;
       SeqDBElement *ref_elem;
@@ -252,6 +265,7 @@ iter_bsq_func (BsqRecord    *rec,
       char         *qual;
       char         *ref;
       unsigned int  start_ref;
+      unsigned int  read_size;
       unsigned int  i;
       int           is_ref_rev = 0;
 
@@ -269,9 +283,10 @@ iter_bsq_func (BsqRecord    *rec,
         }
 
       start_ref = ref_elem->offset + rec->loc - 1;
-      read      = data->reads->seqs + read_elem->offset;
-      qual      = data->reads->quals + read_elem->offset;
+      read      = data->reads->seqs + read_elem->offset + data->trim_tag;
+      qual      = data->reads->quals + read_elem->offset + data->trim_tag;
       ref       = data->ref->seqs + start_ref;
+      read_size = read_elem->size - data->trim_tag;
 
       switch (rec->strand)
         {
@@ -280,19 +295,19 @@ iter_bsq_func (BsqRecord    *rec,
               break;
           case BSQ_STRAND_C:
               /* Reverse ref */
-              ref = rev_comp_in_place (ref, read_elem->size);
+              ref = rev_comp_in_place (ref, read_size);
               is_ref_rev = 1;
               break;
           case BSQ_STRAND_WC:
               /* Reverse read */
-              read = rev_comp_in_place (read, read_elem->size);
-              qual = rev_in_place (qual, read_elem->size);
+              read = rev_comp_in_place (read, read_size);
+              qual = rev_in_place (qual, read_size);
               break;
           case BSQ_STRAND_CC:
               /* Reverse both read and ref */
-              ref  = rev_comp_in_place (ref, read_elem->size);
-              qual = rev_in_place (qual, read_elem->size);
-              read = rev_comp_in_place (read, read_elem->size);
+              ref  = rev_comp_in_place (ref, read_size);
+              qual = rev_in_place (qual, read_size);
+              read = rev_comp_in_place (read, read_size);
               is_ref_rev = 1;
               break;
           default:
@@ -304,13 +319,13 @@ iter_bsq_func (BsqRecord    *rec,
        */
       if (data->max_chh > 0)
         {
-          const unsigned int maxi = read_elem->size - 2;
+          const unsigned int maxi = read_size - 2;
           unsigned int       j;
           unsigned int       n_chh = 0;
 
           for (i = 0; i < maxi; i++)
             {
-              const unsigned int maxj = MIN (i + 9, read_elem->size);
+              const unsigned int maxj = MIN (i + 9, read_size);
 
               n_chh = 0;
               for (j = i; j < maxj; j++)
@@ -337,7 +352,7 @@ iter_bsq_func (BsqRecord    *rec,
 
       /* No NQS */
       if (data->nqs_each_side <= 0)
-        for (i = 0; i < read_elem->size; i++)
+        for (i = 0; i < read_size; i++)
           {
             if (ref[i] == 'C')
               {
@@ -347,7 +362,7 @@ iter_bsq_func (BsqRecord    *rec,
 
                     meth_idx = i;
                     if (is_ref_rev)
-                      meth_idx = read_elem->size - i - 1;
+                      meth_idx = read_size - i - 1;
                     if (read[i] == 'C')
                       data->counts->meth_index[start_ref + meth_idx]->n_meth++;
                     else if (read[i] == 'T')
@@ -359,7 +374,7 @@ iter_bsq_func (BsqRecord    *rec,
       else
         {
           const unsigned int start = data->nqs_each_side;
-          const unsigned int end   = read_elem->size - data->nqs_each_side;
+          const unsigned int end   = read_size - data->nqs_each_side;
 
           for (i = start; i < end; i++)
             {
@@ -433,7 +448,7 @@ iter_bsq_func (BsqRecord    *rec,
 
                       meth_idx = i;
                       if (is_ref_rev)
-                        meth_idx = read_elem->size - i - 1;
+                        meth_idx = read_size - i - 1;
                       if (read[i] == 'C')
                         data->counts->meth_index[start_ref + meth_idx]->n_meth++;
                       else if (read[i] == 'T')
@@ -448,7 +463,7 @@ iter_bsq_func (BsqRecord    *rec,
        */
 reverse:
       if (is_ref_rev)
-        ref  = rev_comp_in_place (ref, read_elem->size);
+        ref  = rev_comp_in_place (ref, read_size);
     }
   else
     data->n_bad_orientation++;
