@@ -131,7 +131,7 @@ parse_args (CallbackData      *data,
       {"min_qual",     'm', 0, G_OPTION_ARG_INT,  &data->min_qual,     "Minimum base quality", NULL},
       {"max_chh",      'M', 0, G_OPTION_ARG_INT,  &data->max_chh,      "Maximum number of consecutive CHH per read", NULL},
       {"trim_tag",     'T', 0, G_OPTION_ARG_INT,  &data->trim_tag,     "Number of tag letters to trim", NULL},
-      {"check_strand", 's', 0, G_OPTION_ARG_NONE, &data->check_strand, "Check strand orientation", NULL},
+      {"check_strand", 'c', 0, G_OPTION_ARG_NONE, &data->check_strand, "Check strand orientation", NULL},
 
       {"nqs_each_side",     's', 0, G_OPTION_ARG_INT, &data->nqs_each_side,     "Number of bases to consider on each side for the NQS criterion", NULL},
       {"nqs_mismatches",    't', 0, G_OPTION_ARG_INT, &data->nqs_mismatches,    "Maximum number of mismatches for the NQS criterion", NULL},
