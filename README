@@ -1,0 +1,82 @@
+##################
+##              ##
+## Introduction ##
+##              ##
+##################
+
+Welcome to libngs, the Nifty GNU Sequence Library (or Next Generation
+Sequencing Library, whatever).
+
+This library was and accompanying tools were originally written to handle whole
+genome bisulfite sequencing data generated with the Illumina technology.  Since
+then it has been found useful in a few other situations.
+
+###################
+##               ##
+## Prerequisites ##
+##               ##
+###################
+
+1) flex
+
+To compile libngs and its tools you will need flex (the Fast Lexical Analyser).
+In most Linux distributions, this comes in the `flex' package.
+For more information, see http://flex.sourceforge.net/
+
+2) libglib
+
+You will need libglib and its header files in a version greater or equal to
+2.16.  On a Debian system, this can be found in the libglib2.0-0 and
+libglib2.0-0-dev packages.  Other distributions probably use similar names.
+For more information see http://www.gtk.org/
+
+##################
+##              ##
+## Installation ##
+##              ##
+##################
+
+For details see the accompanying install file. In brief:
+
+For a system-wide installation:
+
+./configure
+make
+sudo make install
+
+For a user-specific installation:
+
+./configure --prefix=/somewhere/where/you/have/write/access
+make install
+
+####################
+##                ##
+## What's inside? ##
+##                ##
+####################
+
+libngs itself (in the src/libngs/ directory) has various parsing functions, and
+structures to hold sequences and mapping informations.  It also has function to
+manipulate these structures in various ways.
+
+The tools that come with libngs (in the src/bin/ directory) allow various type
+of manipulations on sequence data files, and mapping data.  If you understand
+the name of the tool, then it probably does what you think. If you don't, then
+you probably don't need it.  In doubt try:
+< whatever tool name> -h
+
+In general, these tools are designed to be chained together and read from stdin.
+For instance:
+
+bzcat infile.bz2 |  fastq_sample - | src/bin/fastq_trim - | gzip - > outfile.gz
+
+This decompresses infile.bz2, randomly samples some of the resulting sequences,
+trim them and compresses the resulting file with gzip.  The tools might need
+some extra options, but you get the idea.
+
+There are also a few helper scripts in src/scripts/ that might be useful.
+
+If one day I have time, I will write a more complete description of the library
+and its tools.
+
+# vim:spell:
