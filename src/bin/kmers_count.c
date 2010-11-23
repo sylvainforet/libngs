@@ -1,3 +1,21 @@
+/* Copyright (C) 2010  Sylvain FORET
+ *
+ * This file is part of libngs.
+ *
+ * libngs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *                                                                       
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *                                                                       
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 /**
  *
  */
@@ -37,10 +55,7 @@ struct _CallbackData
   char              *output_path;
   GIOChannel        *output_channel;
 
-  IterCharSeqFunc    iter_char_seq_func;
-
   KmerHashTable     *htable;
-  KmerHashTableK32  *htable_k32;
   unsigned char     *tmp_kmer;
 
   unsigned long int  n_seqs;
@@ -53,8 +68,6 @@ struct _CallbackData
   int                noopt;
   int                verbose;
 };
-
-static unsigned int word_size_bytes;
 
 /* Default Functions */
 
@@ -80,29 +93,7 @@ static void              print_results              (CallbackData        *data);
 
 static void              print_results_default      (CallbackData        *data);
 
-static int               kmer_equal_default         (const unsigned char *key1,
-                                                     const unsigned char *key2);
-
-static unsigned long int kmer_hash_default          (const unsigned char *key);
-
-/* Optimised Functions, sort of ... */
-
-static int               kmer_equal_k16             (const unsigned char *key1,
-                                                     const unsigned char *key2);
-
-static unsigned long int kmer_hash_k16              (const unsigned char *key);
-
-static unsigned long int kmer_hash_k32p             (const unsigned char *key);
-
-static int               iter_char_seq_k16          (CallbackData        *data,
-                                                     const char          *seq,
-                                                     unsigned long int    size);
-
-static int               iter_char_seq_k32          (CallbackData        *data,
-                                                     const char          *seq,
-                                                     unsigned long int    size);
-
-static void              print_results_k32          (CallbackData        *data);
+static void              print_results_32bp         (CallbackData        *data);
 
 int
 main (int    argc,
@@ -135,8 +126,6 @@ main (int    argc,
     }
   if (data.htable)
     kmer_hash_table_destroy (data.htable);
-  if (data.htable_k32)
-    kmer_hash_table_k32_destroy (data.htable_k32);
   if (data.output_path)
     g_free (data.output_path);
   if (data.tmp_kmer)
@@ -175,7 +164,6 @@ parse_args (CallbackData      *data,
   data->freq_report = 1000000;
   data->output_path = strdup("-");
   data->htable      = NULL;
-  data->htable_k32  = NULL;
   data->tmp_kmer    = NULL;
 
   context = g_option_context_new ("FILE - Count the number of kmers in a fasta/fastq file");
@@ -202,36 +190,21 @@ parse_args (CallbackData      *data,
     }
 
   data->k_bytes    = (data->k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
-  data->tmp_kmer   = g_malloc0 (data->k_bytes);
   data->input_path = (*argv)[1];
 
-  word_size_bytes  = data->k_bytes;
-
-  if (data->k == 32 && !data->noopt)
+  if (data->k <= 32 && !data->noopt)
     {
-      data->htable_k32 = kmer_hash_table_k32_new (data->k_bytes);
-      data->iter_char_seq_func = iter_char_seq_k32;
-    }
-  else if (data->k == 16 && !data->noopt)
-    {
-      data->htable = kmer_hash_table_new ((GHashFunc)kmer_hash_k16,
-                                          (GEqualFunc)kmer_equal_k16,
+      data->htable = kmer_hash_table_new (kmer_hash_32bp,
+                                          kmer_equal_32bp,
                                           data->k_bytes);
-      data->iter_char_seq_func = iter_char_seq_k16;
-    }
-  else if (data->k > 32 && !data->noopt)
-    {
-      data->htable = kmer_hash_table_new ((GHashFunc)kmer_hash_k32p,
-                                          (GEqualFunc)kmer_equal_default,
-                                          data->k_bytes);
-      data->iter_char_seq_func = iter_char_seq_default;
+      data->tmp_kmer   = g_malloc0 (KMER_VAL_SIZE);
     }
   else
     {
-      data->htable = kmer_hash_table_new ((GHashFunc)kmer_hash_default,
-                                          (GEqualFunc)kmer_equal_default,
+      data->htable = kmer_hash_table_new (kmer_hash_generic,
+                                          kmer_equal_generic,
                                           data->k_bytes);
-      data->iter_char_seq_func = iter_char_seq_default;
+      data->tmp_kmer   = g_malloc0 (data->k_bytes);
     }
 
   if (data->verbose)
@@ -259,11 +232,11 @@ iter_func_char (char              *seq,
 {
   int            ret;
 
-  ret = data->iter_char_seq_func (data, seq, size);
+  ret = iter_char_seq_default (data, seq, size);
   if (ret != 1)
     return ret;
   if (data->do_revcomp)
-    ret = data->iter_char_seq_func (data, rev_comp_in_place (seq, size), size);
+    ret = iter_char_seq_default (data, rev_comp_in_place (seq, size), size);
 
   data->n_seqs++;
   if (data->verbose && data->n_seqs % data->freq_report == 0)
@@ -296,12 +269,12 @@ print_results (CallbackData *data)
         }
     }
   g_io_channel_set_encoding (data->output_channel, NULL, NULL);
-  g_io_channel_set_buffer_size (data->output_channel, 1024 * 1024 * 128);
+  g_io_channel_set_buffer_size (data->output_channel, 1024 * 1024);
 
-  if (data->htable)
-    print_results_default (data);
+  if (data->k <= 32)
+    print_results_32bp (data);
   else
-    print_results_k32 (data);
+    print_results_default (data);
 
   /* Close */
   if (!use_stdout)
@@ -337,7 +310,7 @@ print_results_default (CallbackData *data)
       if (data->bin_out)
         {
           for (j = 0; j < data->k_bytes; j++)
-            buffer[j] = hnode->kmer[j];
+            buffer[j] = hnode->kmer.kmer_ptr[j];
           *((unsigned long int*)(buffer + j)) = GULONG_TO_BE (hnode->count);
           g_io_channel_write_chars (data->output_channel,
                                     (char*)buffer, data->k_bytes + sizeof (unsigned long int),
@@ -352,7 +325,7 @@ print_results_default (CallbackData *data)
           *--buffer_ptr = ' ';
           j            += 1 + data->k;
           buffer_ptr   -= data->k;
-          bin_to_char_prealloc (buffer_ptr, hnode->kmer, data->k);
+          bin_to_char_prealloc (buffer_ptr, hnode->kmer.kmer_ptr, data->k);
           g_io_channel_write_chars (data->output_channel,
                                     buffer_ptr, j,
                                     NULL, &error);
@@ -368,23 +341,25 @@ print_results_default (CallbackData *data)
 }
 
 static void
-print_results_k32 (CallbackData *data)
+print_results_32bp (CallbackData *data)
 {
-  KmerHashTableK32Iter iter;
-  KmerHashNodeK32     *hnode;
-  char                *buffer;
-  char                *buffer_ptr;
-  GError              *error = NULL;
+  KmerHashTableIter  iter;
+  KmerHashNode      *hnode;
+  char              *buffer;
+  char              *buffer_ptr;
+  GError            *error = NULL;
 
   buffer = g_alloca (data->k + DIGITS_BUFF_SPACE);
   buffer[data->k + DIGITS_BUFF_SPACE - 1] = '\n';
-  kmer_hash_table_k32_iter_init (&iter, data->htable_k32);
-  while ((hnode = kmer_hash_table_k32_iter_next (&iter)) != NULL)
+  kmer_hash_table_iter_init (&iter, data->htable);
+  while ((hnode = kmer_hash_table_iter_next (&iter)) != NULL)
     {
+      int j;
       if (data->bin_out)
         {
-          *(guint64*)buffer = hnode->kmer;
-          *((unsigned long int*)(buffer + 8)) = GULONG_TO_BE (hnode->count);
+          for (j = 0; j < data->k_bytes; j++)
+            buffer[j] = hnode->kmer.kmer_val[j];
+          *((unsigned long int*)(buffer + j)) = GULONG_TO_BE (hnode->count);
           g_io_channel_write_chars (data->output_channel,
                                     (char*)buffer, data->k_bytes + sizeof (unsigned long int),
                                     NULL, &error);
@@ -392,14 +367,13 @@ print_results_k32 (CallbackData *data)
       else
         {
           unsigned long int n;
-          int               j = 1;
+          j             = 1;
           n             = hnode->count;
           uitoa_no0 (n, buffer, DIGITS_BUFF_SPACE - 1 + data->k, buffer_ptr, j);
           *--buffer_ptr = ' ';
           j            += 1 + data->k;
           buffer_ptr   -= data->k;
-          //guint64_to_char32 (buffer_ptr, hnode->kmer);
-          bin_to_char_prealloc (buffer_ptr, (guchar*)(&hnode->kmer), 32);
+          bin_to_char_prealloc (buffer_ptr, hnode->kmer.kmer_val, data->k);
           g_io_channel_write_chars (data->output_channel,
                                     buffer_ptr, j,
                                     NULL, &error);
@@ -472,240 +446,6 @@ iter_char_seq_default (CallbackData     *data,
       kmer_hash_table_insert (data->htable, data->tmp_kmer);
     }
   return 1;
-}
-
-static int
-iter_char_seq_k16 (CallbackData        *data,
-                   const char          *seq,
-                   unsigned long int    size)
-{
-  unsigned long int       i;
-  unsigned long int       j;
-  unsigned long int       k;
-  const unsigned long int maxi = size - data->k + 1;
-
-  if (size < data->k)
-    return 1;
-
-  /* Find the first index of a kmer without Ns */
-  for (j = 0, k = 0; j < size; j++)
-    {
-      if (seq[j] == 'N' || seq[j] == 'n')
-        k = 0;
-      else
-        k++;
-      if (k == 16)
-        {
-          j++;
-          break;
-        }
-    }
-  if (k < 16)
-    return 1;
-  char_to_bin_prealloc (data->tmp_kmer, seq + j - k, data->k);
-  data->tmp_kmer[0] <<= BITS_PER_NUC;
-  data->tmp_kmer[1] <<= BITS_PER_NUC;
-  data->tmp_kmer[2] <<= BITS_PER_NUC;
-  data->tmp_kmer[3] <<= BITS_PER_NUC;
-  for (i = j - k; i < maxi; i++)
-    {
-      char c;
-
-      /* Skip over Ns */
-      c = seq[i + data->k - 1];
-      if (c == 'N' || c == 'n')
-        {
-          k = 0;
-          for (j = i + 16; j < size; j++)
-            {
-              if (seq[j] == 'N' || seq[j] == 'n')
-                k = 0;
-              else
-                k++;
-              if (k == 16)
-                {
-                  j++;
-                  break;
-                }
-            }
-          if (k < 16)
-            return 1;
-          i = j - k;
-          char_to_bin_prealloc (data->tmp_kmer, seq + i, data->k);
-        }
-      else
-        {
-          data->tmp_kmer[0] >>= BITS_PER_NUC;
-          data->tmp_kmer[1] >>= BITS_PER_NUC;
-          data->tmp_kmer[2] >>= BITS_PER_NUC;
-          data->tmp_kmer[3] >>= BITS_PER_NUC;
-
-          data->tmp_kmer[0] |= char_to_bin_table[(unsigned char)seq[i +  3]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[1] |= char_to_bin_table[(unsigned char)seq[i +  7]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[2] |= char_to_bin_table[(unsigned char)seq[i + 11]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          data->tmp_kmer[3] |= char_to_bin_table[(unsigned char)seq[i + 15]] << (BITS_PER_BYTE - BITS_PER_NUC);
-        }
-      kmer_hash_table_insert (data->htable, data->tmp_kmer);
-    }
-  return 1;
-}
-
-static int
-iter_char_seq_k32 (CallbackData        *data,
-                   const char          *seq,
-                   unsigned long int    size)
-{
-  guint64                 tmp;
-  unsigned char          *tmpc = (unsigned char*)&tmp; /* WARNING Highly non-portable hack */
-  unsigned long int       i;
-  unsigned long int       j;
-  unsigned long int       k;
-  const unsigned long int maxi = size - data->k + 1;
-
-  if (size < data->k)
-    return 1;
-
-  /* Find the first index of a kmer without Ns */
-  for (j = 0, k = 0; j < size; j++)
-    {
-      if (seq[j] == 'N' || seq[j] == 'n')
-        k = 0;
-      else
-        k++;
-      if (k == 32)
-        {
-          j++;
-          break;
-        }
-    }
-  if (k < 32)
-    return 1;
-
-  char_to_bin_prealloc (tmpc, seq + j - k, data->k);
-  tmpc[0] <<= BITS_PER_NUC;
-  tmpc[1] <<= BITS_PER_NUC;
-  tmpc[2] <<= BITS_PER_NUC;
-  tmpc[3] <<= BITS_PER_NUC;
-  tmpc[4] <<= BITS_PER_NUC;
-  tmpc[5] <<= BITS_PER_NUC;
-  tmpc[6] <<= BITS_PER_NUC;
-  tmpc[7] <<= BITS_PER_NUC;
-  for (i = j - k; i < maxi; i++)
-    {
-      char c;
-
-      /* Skip over Ns */
-      c = seq[i + data->k - 1];
-      if (c == 'N' || c == 'n')
-        {
-          k = 0;
-          for (j = i + 32; j < size; j++)
-            {
-              if (seq[j] == 'N' || seq[j] == 'n')
-                k = 0;
-              else
-                k++;
-              if (k == 32)
-                {
-                  j++;
-                  break;
-                }
-            }
-          if (k < 32)
-            return 1;
-          i = j - k;
-          char_to_bin_prealloc (tmpc, seq + i, data->k);
-        }
-      else
-        {
-          tmpc[0] >>= BITS_PER_NUC;
-          tmpc[1] >>= BITS_PER_NUC;
-          tmpc[2] >>= BITS_PER_NUC;
-          tmpc[3] >>= BITS_PER_NUC;
-          tmpc[4] >>= BITS_PER_NUC;
-          tmpc[5] >>= BITS_PER_NUC;
-          tmpc[6] >>= BITS_PER_NUC;
-          tmpc[7] >>= BITS_PER_NUC;
-
-          tmpc[0] |= char_to_bin_table[(unsigned char)seq[i +  3]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          tmpc[1] |= char_to_bin_table[(unsigned char)seq[i +  7]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          tmpc[2] |= char_to_bin_table[(unsigned char)seq[i + 11]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          tmpc[3] |= char_to_bin_table[(unsigned char)seq[i + 15]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          tmpc[4] |= char_to_bin_table[(unsigned char)seq[i + 19]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          tmpc[5] |= char_to_bin_table[(unsigned char)seq[i + 23]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          tmpc[6] |= char_to_bin_table[(unsigned char)seq[i + 27]] << (BITS_PER_BYTE - BITS_PER_NUC);
-          tmpc[7] |= char_to_bin_table[(unsigned char)seq[i + 31]] << (BITS_PER_BYTE - BITS_PER_NUC);
-        }
-      //char_to_bin_prealloc ((guchar*)(&tmp), seq + i, 32);
-      kmer_hash_table_k32_insert (data->htable_k32, tmp);
-    }
-  return 1;
-}
-
-static unsigned long int
-kmer_hash_default (const unsigned char *key)
-{
-  /*
-  unsigned long int hash = 5381;
-  unsigned int      i    = 0;
-
-  do
-    hash = (hash * 33) ^ key[i];
-  while (++i < word_size_bytes);
-  */
-  /*
-  unsigned long int hash = 0;
-  unsigned int      i    = 0;
-
-  do
-    hash = (hash << 5) - hash + key[i];
-  while (++i < word_size_bytes);
-  */
-  unsigned long int hash = 0;
-  unsigned int      i    = 0;
-  do
-    {
-      hash <<= 8;
-      hash  |= key[i];
-    }
-  while (++i < word_size_bytes);
-
-  return ((unsigned int)(hash * 2654435769U));;
-}
-
-static int
-kmer_equal_default (const unsigned char *key1,
-                    const unsigned char *key2)
-{
-  unsigned int i;
-
-  for (i = 0; i < word_size_bytes; i++)
-    if (key1[i] != key2[i])
-      return 0;
-
-  return 1;
-}
-
-static int
-kmer_equal_k16 (const unsigned char *key1,
-                const unsigned char *key2)
-{
-  const guint32 i1 = *(guint32*)key1;
-  const guint32 i2 = *(guint32*)key2;
-  return i1 == i2;
-}
-
-static unsigned long int
-kmer_hash_k16 (const unsigned char *key)
-{
-  return (*(guint32*)key) * 2654435769U;;
-}
-
-static unsigned long int
-kmer_hash_k32p (const unsigned char *key)
-{
-  guint32 *k = (guint32*) key;
-  return (k[0] ^ k[1]) * 2654435769U;
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
