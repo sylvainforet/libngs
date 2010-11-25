@@ -93,8 +93,6 @@ iter_bsq (char         *path,
     iter_bsq_flex (path, func, data, error);
   else if (strcmp (bsq_parser_name, "simple") == 0)
     iter_bsq_simple (path, func, data, error);
-  else if (strcmp (bsq_parser_name, "flexugly") == 0)
-    iter_bsq_flex_ugly (path, func, data, error);
   else if (strcmp (bsq_parser_name, "flexline") == 0)
     iter_bsq_flex_line (path, func, data, error);
   else

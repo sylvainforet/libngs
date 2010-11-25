@@ -96,8 +96,6 @@ iter_fastq (const char   *path,
     iter_fastq_simple (path, func, data, error);
   else if (strcmp (fastq_parser_name, "ugly") == 0)
     iter_fastq_ugly (path, func, data, error);
-  else if (strcmp (fastq_parser_name, "flexugly") == 0)
-    iter_fastq_flex_ugly (path, func, data, error);
   else
     {
       g_set_error (error,
