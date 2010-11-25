@@ -39,6 +39,9 @@ struct _CallbackData
   GIOChannel *single_channel;
 
   int         min_size;
+  int         append;
+  int         append_single;
+
   int         use_stdout: 1;
 };
 
@@ -152,9 +155,11 @@ parse_args (CallbackData   *data,
 {
   GOptionEntry entries[] =
     {
-      {"output",  'o', 0, G_OPTION_ARG_FILENAME, &data->output_path,   "Output path", NULL},
-      {"single",  's', 0, G_OPTION_ARG_FILENAME, &data->output_single, "File for single reads", NULL},
-      {"minsize", 'm', 0, G_OPTION_ARG_INT, &data->min_size,           "Min read size", NULL},
+      {"output",       'o', 0, G_OPTION_ARG_FILENAME, &data->output_path,   "Output path", NULL},
+      {"single",       's', 0, G_OPTION_ARG_FILENAME, &data->output_single, "File for single reads", NULL},
+      {"minsize",      'm', 0, G_OPTION_ARG_INT,      &data->min_size,      "Min read size", NULL},
+      {"append",       'a', 0, G_OPTION_ARG_NONE,     &data->append,        "Append to output", NULL},
+      {"appendsingle", 'b', 0, G_OPTION_ARG_NONE,     &data->append_single, "Append to single reads output", NULL},
       {NULL}
     };
   GError         *error = NULL;
@@ -164,6 +169,8 @@ parse_args (CallbackData   *data,
   data->output_single  = NULL;
   data->output_channel = NULL;
   data->single_channel = NULL;
+  data->append         = 0;
+  data->append_single  = 0;
   data->use_stdout     = 1;
   data->min_size       = 0;
 
@@ -195,7 +202,9 @@ parse_args (CallbackData   *data,
   else
     {
       data->use_stdout      = 0;
-      data->output_channel = g_io_channel_new_file (data->output_path, "w", &error);
+      data->output_channel = g_io_channel_new_file (data->output_path,
+                                                    data->append ? "a" : "w",
+                                                    &error);
       if (error)
         {
           g_printerr ("[ERROR] Opening sequence output file failed: %s\n", error->message);
@@ -207,7 +216,9 @@ parse_args (CallbackData   *data,
   g_io_channel_set_buffer_size (data->output_channel, 4096 * 128);
   if (data->output_single)
     {
-      data->single_channel = g_io_channel_new_file (data->output_single, "w", &error);
+      data->single_channel = g_io_channel_new_file (data->output_single,
+                                                    data->append_single ? "a" : "w",
+                                                    &error);
       if (error)
         {
           g_printerr ("[ERROR] Opening single reads output file failed: %s\n", error->message);
