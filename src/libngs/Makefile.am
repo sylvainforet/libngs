@@ -1,7 +1,6 @@
 EXTRA_DIST = \
 	make_qual_table.py \
 	ngs_bsq_flex.l \
-	ngs_bsq_flex_line.l \
 	ngs_fasta_flex.l \
 	ngs_fastq_flex.l
 
@@ -19,9 +18,6 @@ lex.FlexFastq_.c: ngs_fastq_flex.l ngs_fastq_flex.h
 
 lex.FlexBsq_.c: ngs_bsq_flex.l ngs_bsq_flex.h
 	@LEX@ ngs_bsq_flex.l
-
-lex.FlexBsqLine_.c: ngs_bsq_flex_line.l ngs_bsq_flex.h
-	@LEX@ ngs_bsq_flex_line.l
 
 noinst_LTLIBRARIES = \
 	libngs.la
@@ -42,7 +38,6 @@ libngs_la_SOURCES = \
 	ngs_bsq.c \
 	ngs_bsq_flex.h \
 	lex.FlexBsq_.c \
-	lex.FlexBsqLine_.c \
 	ngs_methylation.h \
 	ngs_methylation.c \
 	ngs_seq_db.h \
@@ -58,8 +53,7 @@ libngs_la_SOURCES = \
 CLEANFILES = \
 	lex.FlexFasta_.c \
 	lex.FlexFastq_.c \
-	lex.FlexBsq_.c \
-	lex.FlexBsqLine_.c
+	lex.FlexBsq_.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in
