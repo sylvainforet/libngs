@@ -36,21 +36,17 @@ static void parse_args (TestFastaData    *data,
                         int               *argc,
                         char            ***argv);
 
-static int  iter_fasta_func (FastaSeq *seq,
-                             void     *data);
-
 int
 main (int    argc,
       char **argv)
 {
   TestFastaData  data;
+  FastaIter     *iter;
+  FastaSeq      *seq;
   GError        *error = NULL;
 
   parse_args (&data, &argc, &argv);
-  iter_fasta (data.input_path,
-              iter_fasta_func,
-              NULL,
-              &error);
+  iter = fasta_iter_new (data.input_path, &error);
   if (error)
     {
       g_printerr ("[ERROR] Failed to load input file `%s': %s\n",
@@ -58,6 +54,16 @@ main (int    argc,
                   error->message);
       exit (1);
     }
+  for (seq = fasta_iter_next (iter) ; seq != NULL; seq = fasta_iter_next (iter))
+    {
+      char *tmp;
+
+      tmp = fasta_write_to_buffer (seq, 50);
+      g_print ("%s\n", tmp);
+      g_free (tmp);
+    }
+
+  fasta_iter_free (iter);
 
   return 0;
 }
@@ -93,19 +99,6 @@ parse_args (TestFastaData    *data,
       exit (1);
     }
   data->input_path = (*argv)[1];
-}
-
-static int
-iter_fasta_func (FastaSeq *seq,
-                 void     *data)
-{
-  char *tmp;
-
-  tmp = fasta_write_to_buffer (seq, 50);
-  g_print ("%s\n", tmp);
-  g_free (tmp);
-
-  return 1;
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:

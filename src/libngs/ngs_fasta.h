@@ -62,6 +62,24 @@ char* fasta_write_to_buffer (FastaSeq     *seq,
 
 GOptionGroup* get_fasta_option_group (void);
 
+/************/
+/* FataIter */
+/************/
+
+typedef struct _FastaIter FastaIter;
+
+struct _FastaIter
+{
+  void *private;
+};
+
+FastaIter* fasta_iter_new  (const char *path,
+                            GError    **error);
+
+FastaSeq*  fasta_iter_next (FastaIter  *iter);
+
+void       fasta_iter_free (FastaIter  *iter);
+
 #endif /* __NGS_FASTA_H__ */
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:

@@ -156,6 +156,34 @@ fasta_write_to_buffer (FastaSeq     *seq,
   return g_string_free (buffer, FALSE);
 }
 
+FastaIter*
+fasta_iter_new (const char *path,
+                GError    **error)
+{
+  FastaIter *iter;
+
+  iter          = g_slice_new (FastaIter);
+  iter->private = fasta_iter_new_flex (path, error);
+
+  return iter;
+}
+
+FastaSeq*
+fasta_iter_next (FastaIter *iter)
+{
+  return fasta_iter_next_flex ((FastaIterFlex*)iter->private);
+}
+
+void
+fasta_iter_free (FastaIter *iter)
+{
+  if (iter)
+    {
+      if (iter->private)
+        fasta_iter_free_flex ((FastaIterFlex*)iter->private);
+      g_slice_free (FastaIter, iter);
+    }
+}
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */

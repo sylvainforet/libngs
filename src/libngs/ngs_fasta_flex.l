@@ -34,6 +34,8 @@
  * FlexFasta.l
  */
 
+#include <glib.h>
+
 #include "ngs_fasta_flex.h"
 #include "ngs_utils.h"
 
@@ -47,6 +49,13 @@ struct _FlexFastaData
   void          *data;
 };
 
+struct _FastaIterFlex
+{
+  yyscan_t      scanner;
+  FILE         *file;
+  FlexFastaData data;
+};
+
 %}
 
 %x NAME
@@ -58,23 +67,38 @@ struct _FlexFastaData
 <*>>[ \t]* {
     if (yyextra->fasta)
       {
-        int ret;
         yyextra->fasta->seq  = yyextra->buffer->str;
         yyextra->fasta->size = yyextra->buffer->len;
-        ret = yyextra->func (yyextra->fasta, yyextra->data);
-        g_string_free (yyextra->buffer, TRUE);
-        yyextra->fasta->seq  = NULL;
-        fasta_seq_free (yyextra->fasta);
-        yyextra->fasta       = NULL;
-        if (!ret)
-          yyterminate ();
+        if (yyextra->func)
+          {
+            int ret;
+            ret                  = yyextra->func (yyextra->fasta, yyextra->data);
+            g_string_free (yyextra->buffer, TRUE);
+            yyextra->fasta->seq  = NULL;
+            fasta_seq_free (yyextra->fasta);
+            yyextra->fasta       = NULL;
+            if (!ret)
+              yyterminate ();
+          }
+        else
+          {
+            BEGIN (NAME);
+            return 0;
+          }
       }
-    yyextra->fasta  = fasta_seq_new ();
-    yyextra->buffer = g_string_sized_new (1024);
     BEGIN (NAME);
 }
 
 <NAME>[^ \t\n]+ {
+    if (!yyextra->func && yyextra->fasta)
+      {
+        g_string_free (yyextra->buffer, TRUE);
+        yyextra->fasta->seq  = NULL;
+        fasta_seq_free (yyextra->fasta);
+        yyextra->fasta       = NULL;
+      }
+    yyextra->fasta  = fasta_seq_new ();
+    yyextra->buffer = g_string_sized_new (1024);
     yyextra->fasta->name = strdup (yytext);
     BEGIN (HEADER_IGNORE);
 }
@@ -96,11 +120,16 @@ struct _FlexFastaData
       {
         yyextra->fasta->seq  = yyextra->buffer->str;
         yyextra->fasta->size = yyextra->buffer->len;
-        yyextra->func (yyextra->fasta, yyextra->data);
-        g_string_free (yyextra->buffer, TRUE);
-        yyextra->fasta->seq  = NULL;
-        fasta_seq_free (yyextra->fasta);
-        yyextra->fasta = NULL;
+        if (yyextra->func)
+          {
+            yyextra->func (yyextra->fasta, yyextra->data);
+            g_string_free (yyextra->buffer, TRUE);
+            yyextra->fasta->seq  = NULL;
+            fasta_seq_free (yyextra->fasta);
+            yyextra->fasta = NULL;
+          }
+        else
+          return 0;
       }
     yyterminate ();
 }
@@ -139,6 +168,77 @@ void iter_fasta_flex (const char   *path,
   yylex (scanner);
   fclose (file);
   yylex_destroy (scanner);
+}
+
+FastaIterFlex* fasta_iter_new_flex (const char   *path,
+                                    GError      **error)
+{
+  FastaIterFlex *iterator;
+  FILE          *file;
+
+  if (path[0] == '-' && path[1] == '\0')
+    file = stdin;
+  else
+    file = fopen (path, "r");
+  if (file == NULL)
+    {
+      g_set_error (error,
+                   NGS_ERROR,
+                   NGS_IO_ERROR,
+                   "Could not open input file `%s'",
+                   path);
+      return NULL;
+    }
+
+  iterator              = g_slice_new (FastaIterFlex);
+  iterator->data.fasta  = NULL;
+  iterator->data.buffer = NULL;
+  iterator->data.func   = NULL;
+  iterator->data.data   = NULL;
+  iterator->scanner     = NULL;
+  iterator->file        = file;
+  yylex_init_extra (&iterator->data, &iterator->scanner);
+  yyset_in (file, iterator->scanner);
+
+  return iterator;
+}
+
+FastaSeq* fasta_iter_next_flex (FastaIterFlex *iter)
+{
+  if (iter->data.fasta != NULL)
+    {
+      g_string_free (iter->data.buffer, TRUE);
+      iter->data.fasta->seq  = NULL;
+      fasta_seq_free (iter->data.fasta);
+      iter->data.fasta       = NULL;
+    }
+  yylex (iter->scanner);
+  if (iter->data.fasta == NULL)
+    {
+      fclose (iter->file);
+      iter->file = NULL;
+      yylex_destroy (iter->scanner);
+      return NULL;
+    }
+  return iter->data.fasta;
+}
+
+void fasta_iter_free_flex (FastaIterFlex *iter)
+{
+  if (iter->data.fasta != NULL)
+    {
+      g_string_free (iter->data.buffer, TRUE);
+      iter->data.fasta->seq  = NULL;
+      fasta_seq_free (iter->data.fasta);
+      iter->data.fasta       = NULL;
+    }
+  if (iter->file != NULL)
+    {
+      fclose (iter->file);
+      iter->file = NULL;
+      yylex_destroy (iter->scanner);
+    }
+  g_slice_free (FastaIterFlex, iter);
 }
 
 /* vim:expandtab:ts=4:sw=4:

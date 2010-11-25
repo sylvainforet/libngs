@@ -10,10 +10,20 @@
 /**
  * A simple and robust flex-based parser.
  */
-void iter_fasta_flex (const char   *path,
-                      FastaIterFunc func,
-                      void         *func_data,
-                      GError      **error);
+
+typedef struct _FastaIterFlex FastaIterFlex;
+
+void            iter_fasta_flex          (const char      *path,
+                                          FastaIterFunc    func,
+                                          void            *func_data,
+                                          GError         **error);
+
+FastaIterFlex*  fasta_iter_new_flex      (const char      *path,
+                                          GError         **error);
+
+FastaSeq*       fasta_iter_next_flex     (FastaIterFlex   *iter);
+                                        
+void            fasta_iter_free_flex     (FastaIterFlex   *iter);
 
 #endif /* __NGS_FASTA_FLEX_H__ */
 
