@@ -12,10 +12,20 @@
 /**
  * A simple and robust flex-based parser.
  */
-void iter_fastq_flex (const char   *path,
-                      FastqIterFunc func,
-                      void         *func_data,
-                      GError      **error);
+
+typedef struct  _FastqIterFlex FastqIterFlex;
+
+void            iter_fastq_flex         (const char    *path,
+                                         FastqIterFunc  func,
+                                         void          *func_data,
+                                         GError       **error);
+
+FastqIterFlex*  fastq_iter_new_flex     (const char    *path,
+                                         GError       **error);
+
+FastqSeq*       fastq_iter_next_flex    (FastqIterFlex *iter);
+
+void            fastq_iter_free_flex    (FastqIterFlex *iter);
 
 #endif /* __NGS_FASTQ_FLEX_H__ */
 

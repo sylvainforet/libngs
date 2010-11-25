@@ -388,5 +388,34 @@ get_fastq_option_group (void)
   return option_group;
 }
 
+FastqIter*
+fastq_iter_new (const char *path,
+                GError    **error)
+{
+  FastqIter *iter;
+
+  iter = g_slice_new (FastqIter);
+  iter->private = fastq_iter_new_flex (path, error);
+
+  return iter;
+}
+
+FastqSeq*
+fastq_iter_next (FastqIter *iter)
+{
+  return fastq_iter_next_flex ((FastqIterFlex*)iter->private);
+}
+
+void
+fastq_iter_free (FastqIter *iter)
+{
+  if (iter)
+    {
+      if (iter->private)
+        fastq_iter_free_flex ((FastqIterFlex*)iter->private);
+      g_slice_free (FastqIter, iter);
+    }
+}
+
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */

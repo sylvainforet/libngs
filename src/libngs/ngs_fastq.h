@@ -57,6 +57,25 @@ void iter_fastq (const char   *path,
 GOptionGroup* get_fastq_option_group (void);
 
 
+/*************/
+/* FastqIter */
+/*************/
+
+typedef struct _FastqIter FastqIter;
+
+struct _FastqIter
+{
+  void *private;
+};
+
+FastqIter* fastq_iter_new  (const char *path,
+                            GError    **error);
+
+FastqSeq*  fastq_iter_next (FastqIter  *iter);
+
+void       fastq_iter_free (FastqIter  *iter);
+
+
 #endif /* __NGS_FASTQ_H__ */
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:

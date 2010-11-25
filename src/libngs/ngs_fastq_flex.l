@@ -46,6 +46,13 @@ struct _FlexFastqData
   void          *data;
 };
 
+struct _FastqIterFlex
+{
+  yyscan_t      scanner;
+  FILE         *file;
+  FlexFastqData data;
+};
+
 %}
 
 %x NAME
@@ -77,11 +84,20 @@ struct _FlexFastqData
 <QUAL>.* {
     int ret;
     yyextra->fastq->qual = strdup (yytext);
-    yyextra->fastq->size = MIN (yyleng, yyextra->fastq->size);
-    ret                  = yyextra->func (yyextra->fastq, yyextra->data);
-    fastq_seq_free (yyextra->fastq);
-    if (!ret)
-      yyterminate ();
+    /*yyextra->fastq->size = MIN (yyleng, yyextra->fastq->size);*/
+    if (yyextra->func)
+      {
+        ret = yyextra->func (yyextra->fastq, yyextra->data);
+        fastq_seq_free (yyextra->fastq);
+        yyextra->fastq = NULL;
+        if (!ret)
+            yyterminate ();
+      }
+    else
+      {
+        BEGIN (INITIAL);
+        return 0;
+      }
     BEGIN (INITIAL);
 }
 
@@ -114,11 +130,77 @@ void iter_fastq_flex (const char   *path,
 
   data.func       = func;
   data.data       = func_data;
+  data.fastq      = NULL;
   yylex_init_extra (&data, &scanner);
   yyset_in (file, scanner);
   yylex (scanner);
   fclose (file);
   yylex_destroy (scanner);
+}
+
+FastqIterFlex* fastq_iter_new_flex (const char   *path,
+                                    GError      **error)
+{
+  FastqIterFlex *iter;
+  FILE          *file;
+
+  if (path[0] == '-' && path[1] == '\0')
+    file = stdin;
+  else
+    file = fopen (path, "r");
+  if (file == NULL)
+    {
+      g_set_error (error,
+                   NGS_ERROR,
+                   NGS_IO_ERROR,
+                   "Could not open input file `%s'",
+                   path);
+      return NULL;
+    }
+
+  iter              = g_slice_new (FastqIterFlex);
+  iter->data.fastq  = NULL;
+  iter->data.func   = NULL;
+  iter->data.data   = NULL;
+  iter->scanner     = NULL;
+  iter->file        = file;
+  yylex_init_extra (&iter->data, &iter->scanner);
+  yyset_in (file, iter->scanner);
+
+  return iter;
+}
+
+FastqSeq* fastq_iter_next_flex (FastqIterFlex *iter)
+{
+  if (iter->data.fastq != NULL)
+    {
+      fastq_seq_free (iter->data.fastq);
+      iter->data.fastq = NULL;
+    }
+  yylex (iter->scanner);
+  if (iter->data.fastq == NULL)
+    {
+      fclose (iter->file);
+      iter->file = NULL;
+      yylex_destroy (iter->scanner);
+    }
+  return iter->data.fastq;
+}
+
+void fastq_iter_free_flex (FastqIterFlex *iter)
+{
+  if (iter->data.fastq != NULL)
+    {
+      fastq_seq_free (iter->data.fastq);
+      iter->data.fastq = NULL;
+    }
+  if (iter->file != NULL)
+    {
+      fclose (iter->file);
+      iter->file = NULL;
+      yylex_destroy (iter->scanner);
+    }
+  g_slice_free (FastqIterFlex, iter);
 }
 
 /* vim:expandtab:ts=4:sw=4:

@@ -10,6 +10,7 @@ INCLUDES = \
 noinst_PROGRAMS = \
 	test_fasta \
 	test_fasta_iter \
+	test_fastq_iter \
 	test_cg \
 	test_binseq
 
@@ -22,6 +23,11 @@ test_fasta_iter_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 test_fasta_iter_SOURCES = \
 	test_fasta_iter.c
+
+test_fastq_iter_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+test_fastq_iter_SOURCES = \
+	test_fastq_iter.c
 
 test_cg_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
