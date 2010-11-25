@@ -34,8 +34,11 @@ struct _CallbackData
   char       *input_path1;
   char       *input_path2;
   char       *output_path;
+  char       *output_single;
   GIOChannel *output_channel;
+  GIOChannel *single_channel;
 
+  int         min_size;
   int         use_stdout: 1;
 };
 
@@ -82,10 +85,26 @@ main (int    argc,
   seq2 = fastq_iter_next (iter2);
   while (seq1 != NULL && seq2 != NULL)
     {
-      g_string_truncate (buffer, 0);
-      write_fastq (seq1, buffer, data.output_channel);
-      write_fastq (seq2, buffer, data.output_channel);
-
+      if (data.min_size > 0)
+        {
+          if (seq1->size >= data.min_size && seq2->size >= data.min_size)
+            {
+              write_fastq (seq1, buffer, data.output_channel);
+              write_fastq (seq2, buffer, data.output_channel);
+            }
+          else
+            {
+              if (seq1->size >= data.min_size && data.single_channel)
+                write_fastq (seq1, buffer, data.single_channel);
+              if (seq2->size >= data.min_size && data.single_channel)
+                write_fastq (seq2, buffer, data.single_channel);
+            }
+        }
+      else
+        {
+          write_fastq (seq1, buffer, data.output_channel);
+          write_fastq (seq2, buffer, data.output_channel);
+        }
       seq1 = fastq_iter_next (iter1);
       seq2 = fastq_iter_next (iter2);
     }
@@ -109,6 +128,19 @@ main (int    argc,
     }
   if (data.output_path)
     g_free (data.output_path);
+  if (data.single_channel)
+    {
+      g_io_channel_shutdown (data.single_channel, TRUE, &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] Closing single reads output file failed: %s\n", error->message);
+          g_error_free (error);
+          error = NULL;
+        }
+      g_io_channel_unref (data.single_channel);
+    }
+  if (data.output_single)
+    g_free (data.output_single);
 
   return 0;
 }
@@ -120,14 +152,20 @@ parse_args (CallbackData   *data,
 {
   GOptionEntry entries[] =
     {
-      {"output" , 'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output path", NULL},
+      {"output",  'o', 0, G_OPTION_ARG_FILENAME, &data->output_path,   "Output path", NULL},
+      {"single",  's', 0, G_OPTION_ARG_FILENAME, &data->output_single, "File for single reads", NULL},
+      {"minsize", 'm', 0, G_OPTION_ARG_INT, &data->min_size,           "Min read size", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->output_path = NULL;
-  data->use_stdout  = 1;
+  data->output_path    = NULL;
+  data->output_single  = NULL;
+  data->output_channel = NULL;
+  data->single_channel = NULL;
+  data->use_stdout     = 1;
+  data->min_size       = 0;
 
   context = g_option_context_new ("FILE1 FILE2 - interleaves the sequences from two fastq files");
   g_option_context_add_group (context, get_fastq_option_group ());
@@ -167,6 +205,18 @@ parse_args (CallbackData   *data,
   g_io_channel_set_encoding (data->output_channel, NULL, NULL);
   g_io_channel_set_buffered (data->output_channel, TRUE);
   g_io_channel_set_buffer_size (data->output_channel, 4096 * 128);
+  if (data->output_single)
+    {
+      data->single_channel = g_io_channel_new_file (data->output_single, "w", &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] Opening single reads output file failed: %s\n", error->message);
+          exit (1);
+        }
+    }
+  g_io_channel_set_encoding (data->single_channel, NULL, NULL);
+  g_io_channel_set_buffered (data->single_channel, TRUE);
+  g_io_channel_set_buffer_size (data->single_channel, 4096 * 128);
 }
 
 static void
@@ -175,6 +225,8 @@ write_fastq (FastqSeq   *fastq,
              GIOChannel *channel)
 {
   GError  *error = NULL;
+
+  g_string_truncate (buffer, 0);
 
   /* Sequence */
   buffer = g_string_append_c (buffer, '@');

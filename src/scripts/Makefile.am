@@ -2,7 +2,6 @@ bin_SCRIPTS = \
 	assembly_stats.py \
 	extract_CG_contig.py \
 	fastq_sample_mate_pairs.sh \
-	interleave.py \
 	kmer_counts.py \
 	methratio2gff.py \
 	methratios2table.py \
@@ -12,7 +11,6 @@ EXTRA_DIST = \
 	assembly_stats.py \
 	fastq_sample_mate_pairs.sh.in \
 	extract_CG_contig.py \
-	interleave.py \
 	kmer_counts.py \
 	methratio2gff.py \
 	methratios2table.py \
