@@ -14,6 +14,7 @@ bin_PROGRAMS = \
 	fastq2fasta \
 	fastq_base_qual_summary \
 	fastq_fetch \
+	fastq_interleave \
 	fastq_letter_qual \
 	fastq_letter_pos \
 	fastq_qual_length_summary \
@@ -44,6 +45,11 @@ fastq_base_qual_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 fastq_base_qual_summary_SOURCES = \
 	fastq_base_qual_summary.c
+
+fastq_interleave_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+fastq_interleave_SOURCES = \
+	fastq_interleave.c
 
 fastq_fetch_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
