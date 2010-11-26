@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.54])
 
-AC_INIT([ngs], [0.0.1], [sylvain foret at anu edu au])
+AC_INIT([ngs], [0.0.2], [sylvain foret at anu edu au])
 AC_CONFIG_SRCDIR([src/libngs/ngs_fastq.h])
 AM_INIT_AUTOMAKE(AC_PACKAGE_TARNAME, AC_PACKAGE_VERSION)
 AM_CONFIG_HEADER(config.h)
