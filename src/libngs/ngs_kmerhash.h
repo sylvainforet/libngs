@@ -34,7 +34,11 @@ struct _KmerHashNode
    * If key_hash == 1, node is a tombstone
    * If key_hash >= 2, node contains data */
   gulong  key_hash;
-  gulong  count;
+  union
+    {
+      gulong  count;
+      void   *value;
+    };
 };
 
 typedef gulong (*KmerHashFunc)  (const unsigned char *kmer,
