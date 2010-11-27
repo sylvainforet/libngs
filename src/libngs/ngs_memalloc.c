@@ -61,7 +61,7 @@ memallocnf_free (MemAllocNF *mem)
 
 void*
 memallocnf_add (MemAllocNF *mem,
-                void       *data)
+                const void *data)
 {
   void *ret;
 

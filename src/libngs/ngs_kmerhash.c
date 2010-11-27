@@ -141,6 +141,34 @@ kmer_hash_table_set_shift_from_size (KmerHashTable *hash_table,
   kmer_hash_table_set_shift (hash_table, shift);
 }
 
+static inline void
+kmer_hash_table_copy_kmer (KmerHashTable       *hash_table,
+                           const unsigned char *kmer1,
+                           KmerHashKmer        *kmer2)
+{
+  if (hash_table->kmer_bytes > KMER_VAL_BYTES)
+    kmer2->kmer_ptr = memallocnf_add (hash_table->allocator, kmer1);
+  else
+    {
+      int i;
+
+      for (i = 4; i < hash_table->kmer_bytes; i += 4)
+        {
+          const int idx1 = i - 4;
+          const int idx2 = i - 3;
+          const int idx3 = i - 2;
+          const int idx4 = i - 1;
+
+          kmer2->kmer_val[idx1] = kmer1[idx1];
+          kmer2->kmer_val[idx2] = kmer1[idx2];
+          kmer2->kmer_val[idx3] = kmer1[idx3];
+          kmer2->kmer_val[idx4] = kmer1[idx4];
+        }
+      for (i -= 4; i < hash_table->kmer_bytes; i++)
+        kmer2->kmer_val[i] = kmer1[i];
+    }
+}
+
 KmerHashNode*
 kmer_hash_table_lookup (KmerHashTable       *hash_table,
                         const unsigned char *kmer)
@@ -425,8 +453,8 @@ kmer_hash_table_destroy (KmerHashTable *hash_table)
 }
 
 void
-kmer_hash_table_insert (KmerHashTable *hash_table,
-                        unsigned char *kmer)
+kmer_hash_table_increment (KmerHashTable       *hash_table,
+                           const unsigned char *kmer)
 {
   KmerHashNode *node;
   gulong node_index;
@@ -441,27 +469,7 @@ kmer_hash_table_insert (KmerHashTable *hash_table,
     node->count++;
   else
     {
-      if (hash_table->kmer_bytes > KMER_VAL_BYTES)
-        node->kmer.kmer_ptr = memallocnf_add (hash_table->allocator, kmer);
-      else
-        {
-          int i;
-
-          for (i = 4; i < hash_table->kmer_bytes; i += 4)
-            {
-              const int idx1 = i - 4;
-              const int idx2 = i - 3;
-              const int idx3 = i - 2;
-              const int idx4 = i - 1;
-
-              node->kmer.kmer_val[idx1] = kmer[idx1];
-              node->kmer.kmer_val[idx2] = kmer[idx2];
-              node->kmer.kmer_val[idx3] = kmer[idx3];
-              node->kmer.kmer_val[idx4] = kmer[idx4];
-            }
-          for (i -= 4; i < hash_table->kmer_bytes; i++)
-            node->kmer.kmer_val[i] = kmer[i];
-        }
+      kmer_hash_table_copy_kmer (hash_table, kmer, &node->kmer);
       node->count    = 1;
       node->key_hash = key_hash;
       hash_table->nnodes++;
@@ -472,6 +480,35 @@ kmer_hash_table_insert (KmerHashTable *hash_table,
           kmer_hash_table_maybe_resize (hash_table);
         }
     }
+}
+
+KmerHashNode*
+kmer_hash_table_lookup_or_create (KmerHashTable       *hash_table,
+                                  const unsigned char *kmer)
+{
+  KmerHashNode *node;
+  gulong node_index;
+  gulong key_hash;
+  gulong old_hash;
+
+  node_index = kmer_hash_table_lookup_node_for_insertion (hash_table, kmer, &key_hash);
+  node       = &hash_table->nodes[node_index];
+  old_hash   = node->key_hash;
+
+  if (old_hash <= 1)
+    {
+      kmer_hash_table_copy_kmer (hash_table, kmer, &node->kmer);
+      node->key_hash = key_hash;
+      node->value    = NULL;
+      hash_table->nnodes++;
+      if (old_hash == 0)
+        {
+          /* We replaced an empty node, and not a tombstone */
+          hash_table->noccupied++;
+          kmer_hash_table_maybe_resize (hash_table);
+        }
+    }
+  return node;
 }
 
 gulong

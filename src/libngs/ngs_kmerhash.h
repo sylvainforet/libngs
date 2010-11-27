@@ -83,8 +83,11 @@ KmerHashTable* kmer_hash_table_new_full            (KmerHashFunc         hash_fu
 
 void           kmer_hash_table_destroy             (KmerHashTable       *hash_table);
 
-void           kmer_hash_table_insert              (KmerHashTable       *hash_table,
-                                                    unsigned char       *kmer);
+void           kmer_hash_table_increment           (KmerHashTable       *hash_table,
+                                                    const unsigned char *kmer);
+
+KmerHashNode*  kmer_hash_table_lookup_or_create    (KmerHashTable       *hash_table,
+                                                    const unsigned char *kmer);
 
 KmerHashNode*  kmer_hash_table_lookup              (KmerHashTable       *hash_table,
                                                     const unsigned char *kmer);

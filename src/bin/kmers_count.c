@@ -384,7 +384,7 @@ iter_char_seq (CallbackData     *data,
           i = j - k;
         }
       char_to_bin_prealloc (data->tmp_kmer, seq + i, data->k);
-      kmer_hash_table_insert (data->htable, data->tmp_kmer);
+      kmer_hash_table_increment (data->htable, data->tmp_kmer);
     }
   return 1;
 }

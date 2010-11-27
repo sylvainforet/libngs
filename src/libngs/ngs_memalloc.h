@@ -31,7 +31,7 @@ MemAllocNF* memallocnf_new  (gsize       elem_size,
 void        memallocnf_free (MemAllocNF *mem);
 
 void*       memallocnf_add  (MemAllocNF *mem,
-                             void       *data);
+                             const void *data);
 
 void*       memallocnf_get  (MemAllocNF *mem);
 
