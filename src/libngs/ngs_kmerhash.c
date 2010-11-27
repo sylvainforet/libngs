@@ -20,6 +20,8 @@
  * Based on Glib's ghash table
  */
 
+#include <string.h>
+
 #include "ngs_kmerhash.h"
 
 #define HASH_TABLE_MIN_SHIFT 3  /* 1 << 3 == 8 buckets */
@@ -227,6 +229,7 @@ kmer_hash_table_lookup_node_for_insertion (KmerHashTable       *hash_table,
 static void
 kmer_hash_table_resize (KmerHashTable *hash_table)
 {
+/*
   KmerHashNode *new_nodes;
   glong old_size;
   glong i;
@@ -263,6 +266,70 @@ kmer_hash_table_resize (KmerHashTable *hash_table)
   g_free (hash_table->nodes);
   hash_table->nodes = new_nodes;
   hash_table->noccupied = hash_table->nnodes;
+*/
+
+#define IS_TOUCHED(i) ((touched[(i) / 8] >> ((i) & 7)) & 1)
+#define SET_TOUCHED(i) (touched[(i) / 8] |= (1 << ((i) & 7)))
+
+  const gulong   old_size = hash_table->size;
+  unsigned char *touched;
+  glong          i;
+
+  kmer_hash_table_set_shift_from_size (hash_table, hash_table->nnodes * 2);
+  hash_table->nodes = g_realloc (hash_table->nodes, hash_table->size * sizeof (*hash_table->nodes));
+  memset (hash_table->nodes + old_size, 0, (hash_table->size - old_size) * sizeof (*hash_table->nodes));
+  touched = g_malloc0 ((old_size / 8 + 1) * sizeof (*touched));
+
+  for (i = 0; i < old_size; i++)
+    {
+      KmerHashNode *node;
+      KmerHashNode *next_node;
+      KmerHashNode tmp_node;
+      gulong       hash_val;
+      glong        step;
+
+      if (IS_TOUCHED (i))
+        continue;
+      node = &hash_table->nodes[i];
+      if (node->key_hash == 0)
+        continue;
+      hash_val = node->key_hash % hash_table->mod;
+      if (hash_val == i)
+        {
+          SET_TOUCHED (i);
+          continue;
+        }
+      tmp_node = *node;
+      next_node = &hash_table->nodes[hash_val];
+      node->key_hash = 0;
+      step = 0;
+      while (next_node->key_hash)
+        {
+          /* Hit an untouched element */
+          if (hash_val < old_size && !IS_TOUCHED (hash_val))
+            {
+              KmerHashNode tmpp;
+
+              tmpp = tmp_node;
+              tmp_node = *next_node;
+              *next_node = tmpp;
+              SET_TOUCHED (hash_val);
+              hash_val = tmp_node.key_hash % hash_table->mod;
+              step = 0;
+            }
+          else
+            {
+              step++;
+              hash_val += step;
+              hash_val &= hash_table->mask;
+            }
+          next_node = &hash_table->nodes[hash_val];
+        }
+      *next_node = tmp_node;
+    }
+  g_free (touched);
+#undef IS_TOUCHED
+#undef SET_TOUCHED
 }
 
 static inline void
