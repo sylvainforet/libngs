@@ -73,7 +73,7 @@ struct _FastaIterFlex
           {
             int ret;
             ret                  = yyextra->func (yyextra->fasta, yyextra->data);
-            g_string_free (yyextra->buffer, TRUE);
+            g_string_truncate (yyextra->buffer, 0);
             yyextra->fasta->seq  = NULL;
             fasta_seq_free (yyextra->fasta);
             yyextra->fasta       = NULL;
@@ -92,13 +92,12 @@ struct _FastaIterFlex
 <NAME>[^ \t\n]+ {
     if (!yyextra->func && yyextra->fasta)
       {
-        g_string_free (yyextra->buffer, TRUE);
+        g_string_truncate (yyextra->buffer, 0);
         yyextra->fasta->seq  = NULL;
         fasta_seq_free (yyextra->fasta);
         yyextra->fasta       = NULL;
       }
     yyextra->fasta  = fasta_seq_new ();
-    yyextra->buffer = g_string_sized_new (1024);
     yyextra->fasta->name = strdup (yytext);
     BEGIN (HEADER_IGNORE);
 }
@@ -160,7 +159,7 @@ void iter_fasta_flex (const char   *path,
     }
 
   data.fasta      = NULL;
-  data.buffer     = NULL;
+  data.buffer     = g_string_sized_new (4096);
   data.func       = func;
   data.data       = func_data;
   yylex_init_extra (&data, &scanner);
@@ -192,7 +191,7 @@ FastaIterFlex* fasta_iter_new_flex (const char   *path,
 
   iterator              = g_slice_new (FastaIterFlex);
   iterator->data.fasta  = NULL;
-  iterator->data.buffer = NULL;
+  iterator->data.buffer = g_string_sized_new (4096);
   iterator->data.func   = NULL;
   iterator->data.data   = NULL;
   iterator->scanner     = NULL;
@@ -207,7 +206,7 @@ FastaSeq* fasta_iter_next_flex (FastaIterFlex *iter)
 {
   if (iter->data.fasta != NULL)
     {
-      g_string_free (iter->data.buffer, TRUE);
+      g_string_truncate (iter->data.buffer, 0);
       iter->data.fasta->seq  = NULL;
       fasta_seq_free (iter->data.fasta);
       iter->data.fasta       = NULL;

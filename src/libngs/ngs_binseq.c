@@ -108,7 +108,7 @@ char_to_bin_prealloc (unsigned char     *dest,
   unsigned long int       i;
   unsigned long int       j;
 
-  for (i = 0, j = 0; i < mod_size; i++, j++)
+  for (i = 0, j = 0; i < mod_size; i += 4, j++)
     {
       const unsigned long int i1 = i + 1;
       const unsigned long int i2 = i + 2;
@@ -155,12 +155,12 @@ bin_to_char_prealloc  (char                *dest,
   unsigned long int       j;
   unsigned int            offset;
 
-  for (i = 0, j = 0; i < mod_size; i++, j++)
+  for (i = 0, j = 0; i < mod_size; i += 4, j++)
     {
       const unsigned long int i1 = i + 1;
       const unsigned long int i2 = i + 2;
       const unsigned long int i3 = i + 3;
-      dest[i]   = (bin_to_char_table[src[j]      & 3]);
+      dest[i]  = (bin_to_char_table[src[j]      & 3]);
       dest[i1] = (bin_to_char_table[src[j] >> 2 & 3]);
       dest[i2] = (bin_to_char_table[src[j] >> 4 & 3]);
       dest[i3] = (bin_to_char_table[src[j] >> 6 & 3]);

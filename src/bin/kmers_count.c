@@ -65,7 +65,6 @@ struct _CallbackData
   int                do_revcomp;
   int                is_fastq;
   int                bin_out;
-  int                noopt;
   int                verbose;
 };
 
@@ -85,15 +84,13 @@ static int               iter_func_char             (char                *seq,
                                                      unsigned long int    size,
                                                      CallbackData        *data);
 
-static int               iter_char_seq_default      (CallbackData        *data,
+static int               iter_char_seq              (CallbackData        *data,
                                                      const char          *seq,
                                                      unsigned long int    size);
 
 static void              print_results              (CallbackData        *data);
 
-static void              print_results_default      (CallbackData        *data);
-
-static void              print_results_32bp         (CallbackData        *data);
+static void              do_print_results           (CallbackData        *data);
 
 int
 main (int    argc,
@@ -114,9 +111,6 @@ main (int    argc,
                 (FastaIterFunc)iter_func_fasta,
                 &data,
                 &error);
-
-  print_results (&data);
-
   if (error)
     {
       g_printerr ("[ERROR] Iterating sequences failed: %s\n", error->message);
@@ -124,6 +118,9 @@ main (int    argc,
       error = NULL;
       return 1;
     }
+
+  print_results (&data);
+
   if (data.htable)
     kmer_hash_table_destroy (data.htable);
   if (data.output_path)
@@ -147,18 +144,16 @@ parse_args (CallbackData      *data,
       {"revcomp",  'r', 0, G_OPTION_ARG_NONE,     &data->do_revcomp,  "Also scan the reverse complement", NULL},
       {"fastq",    'q', 0, G_OPTION_ARG_NONE,     &data->is_fastq,    "Input is in fastq format", NULL},
       {"binout",   'b', 0, G_OPTION_ARG_NONE,     &data->bin_out,     "Write output in binary format", NULL},
-      {"noopt",    'n', 0, G_OPTION_ARG_NONE,     &data->noopt,       "Do not use any optimisation", NULL},
       {"verbose",  'v', 0, G_OPTION_ARG_NONE,     &data->verbose,     "Verbose output", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->k           = 0;
+  data->k           = 31;
   data->do_revcomp  = 0;
   data->is_fastq    = 0;
   data->bin_out     = 0;
-  data->noopt       = 0;
   data->verbose     = 0;
   data->n_seqs      = 0;
   data->freq_report = 1000000;
@@ -192,20 +187,8 @@ parse_args (CallbackData      *data,
   data->k_bytes    = (data->k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
   data->input_path = (*argv)[1];
 
-  if (data->k <= 32 && !data->noopt)
-    {
-      data->htable = kmer_hash_table_new (kmer_hash_32bp,
-                                          kmer_equal_32bp,
-                                          data->k_bytes);
-      data->tmp_kmer   = g_malloc0 (KMER_VAL_SIZE);
-    }
-  else
-    {
-      data->htable = kmer_hash_table_new (kmer_hash_generic,
-                                          kmer_equal_generic,
-                                          data->k_bytes);
-      data->tmp_kmer   = g_malloc0 (data->k_bytes);
-    }
+  data->htable   = kmer_hash_table_new (data->k_bytes);
+  data->tmp_kmer = g_malloc0 (MAX (KMER_VAL_BYTES, data->k_bytes));
 
   if (data->verbose)
     g_printerr ("Parsing %s with k = %d\n", data->input_path, data->k);
@@ -232,11 +215,11 @@ iter_func_char (char              *seq,
 {
   int            ret;
 
-  ret = iter_char_seq_default (data, seq, size);
+  ret = iter_char_seq (data, seq, size);
   if (ret != 1)
     return ret;
   if (data->do_revcomp)
-    ret = iter_char_seq_default (data, rev_comp_in_place (seq, size), size);
+    ret = iter_char_seq (data, rev_comp_in_place (seq, size), size);
 
   data->n_seqs++;
   if (data->verbose && data->n_seqs % data->freq_report == 0)
@@ -271,10 +254,7 @@ print_results (CallbackData *data)
   g_io_channel_set_encoding (data->output_channel, NULL, NULL);
   g_io_channel_set_buffer_size (data->output_channel, 1024 * 1024);
 
-  if (data->k <= 32)
-    print_results_32bp (data);
-  else
-    print_results_default (data);
+  do_print_results (data);
 
   /* Close */
   if (!use_stdout)
@@ -293,12 +273,11 @@ print_results (CallbackData *data)
 
 #define DIGITS_BUFF_SPACE 32
 static void
-print_results_default (CallbackData *data)
+do_print_results (CallbackData *data)
 {
   KmerHashTableIter  iter;
   KmerHashNode      *hnode;
   char              *buffer;
-  char              *buffer_ptr;
   GError            *error = NULL;
 
   buffer = g_alloca (data->k + DIGITS_BUFF_SPACE);
@@ -310,7 +289,12 @@ print_results_default (CallbackData *data)
       if (data->bin_out)
         {
           for (j = 0; j < data->k_bytes; j++)
-            buffer[j] = hnode->kmer.kmer_ptr[j];
+            {
+              if (data->k <= KMER_VAL_NUCS)
+                buffer[j] = hnode->kmer.kmer_val[j];
+              else
+                buffer[j] = hnode->kmer.kmer_ptr[j];
+            }
           *((unsigned long int*)(buffer + j)) = GULONG_TO_BE (hnode->count);
           g_io_channel_write_chars (data->output_channel,
                                     (char*)buffer, data->k_bytes + sizeof (unsigned long int),
@@ -318,62 +302,19 @@ print_results_default (CallbackData *data)
         }
       else
         {
+          char             *buffer_ptr;
           unsigned long int n;
+
           j             = 1;
           n             = hnode->count;
-          uitoa_no0 (n, buffer, DIGITS_BUFF_SPACE - 1 + data->k, buffer_ptr, j);
+          uitoa_no0 (n, buffer, data->k + DIGITS_BUFF_SPACE - 1, buffer_ptr, j);
           *--buffer_ptr = ' ';
           j            += 1 + data->k;
           buffer_ptr   -= data->k;
-          bin_to_char_prealloc (buffer_ptr, hnode->kmer.kmer_ptr, data->k);
-          g_io_channel_write_chars (data->output_channel,
-                                    buffer_ptr, j,
-                                    NULL, &error);
-        }
-      if (error)
-        {
-          g_printerr ("[ERROR] Writing to output file `%s' failed: %s\n",
-                      data->output_path,
-                      error->message);
-          exit (1);
-        }
-    }
-}
-
-static void
-print_results_32bp (CallbackData *data)
-{
-  KmerHashTableIter  iter;
-  KmerHashNode      *hnode;
-  char              *buffer;
-  char              *buffer_ptr;
-  GError            *error = NULL;
-
-  buffer = g_alloca (data->k + DIGITS_BUFF_SPACE);
-  buffer[data->k + DIGITS_BUFF_SPACE - 1] = '\n';
-  kmer_hash_table_iter_init (&iter, data->htable);
-  while ((hnode = kmer_hash_table_iter_next (&iter)) != NULL)
-    {
-      int j;
-      if (data->bin_out)
-        {
-          for (j = 0; j < data->k_bytes; j++)
-            buffer[j] = hnode->kmer.kmer_val[j];
-          *((unsigned long int*)(buffer + j)) = GULONG_TO_BE (hnode->count);
-          g_io_channel_write_chars (data->output_channel,
-                                    (char*)buffer, data->k_bytes + sizeof (unsigned long int),
-                                    NULL, &error);
-        }
-      else
-        {
-          unsigned long int n;
-          j             = 1;
-          n             = hnode->count;
-          uitoa_no0 (n, buffer, DIGITS_BUFF_SPACE - 1 + data->k, buffer_ptr, j);
-          *--buffer_ptr = ' ';
-          j            += 1 + data->k;
-          buffer_ptr   -= data->k;
-          bin_to_char_prealloc (buffer_ptr, hnode->kmer.kmer_val, data->k);
+          if (data->k <= KMER_VAL_NUCS)
+            bin_to_char_prealloc (buffer_ptr, hnode->kmer.kmer_val, data->k);
+          else
+            bin_to_char_prealloc (buffer_ptr, hnode->kmer.kmer_ptr, data->k);
           g_io_channel_write_chars (data->output_channel,
                                     buffer_ptr, j,
                                     NULL, &error);
@@ -390,9 +331,9 @@ print_results_32bp (CallbackData *data)
 #undef DIGITS_BUFF_SPACE
 
 static int
-iter_char_seq_default (CallbackData     *data,
-                       const char       *seq,
-                       unsigned long int size)
+iter_char_seq (CallbackData     *data,
+               const char       *seq,
+               unsigned long int size)
 {
   unsigned long int       i;
   unsigned long int       j;

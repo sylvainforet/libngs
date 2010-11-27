@@ -205,7 +205,7 @@ kmer_hash_table_lookup_node_for_insertion (KmerHashTable       *hash_table,
        */
       if (node->key_hash == hash_value)
         {
-          if (hash_table->key_equal_func (kmer, &node->kmer, hash_table->size))
+          if (hash_table->key_equal_func (kmer, &node->kmer, hash_table->kmer_bytes))
             return node_index;
         }
       else if (node->key_hash == 1 && !have_tombstone)
@@ -277,9 +277,26 @@ kmer_hash_table_maybe_resize (KmerHashTable *hash_table)
 }
 
 KmerHashTable*
-kmer_hash_table_new (KmerHashFunc  hash_func,
-                     KmerEqualFunc key_equal_func,
-                     gsize         kmer_bytes)
+kmer_hash_table_new (gsize kmer_bytes)
+{
+  KmerHashTable *hash_table;
+
+  if (kmer_bytes <= KMER_VAL_BYTES)
+    hash_table = kmer_hash_table_new_full (kmer_hash_32bp,
+                                           kmer_equal_32bp,
+                                           kmer_bytes);
+  else
+    hash_table = kmer_hash_table_new_full (kmer_hash_generic,
+                                           kmer_equal_generic,
+                                           kmer_bytes);
+
+  return hash_table;
+}
+
+KmerHashTable*
+kmer_hash_table_new_full (KmerHashFunc  hash_func,
+                          KmerEqualFunc key_equal_func,
+                          gsize         kmer_bytes)
 {
   KmerHashTable *hash_table;
 
@@ -291,7 +308,7 @@ kmer_hash_table_new (KmerHashFunc  hash_func,
   hash_table->key_equal_func     = key_equal_func;
   hash_table->nodes              = g_new0 (KmerHashNode, hash_table->size);
   hash_table->kmer_bytes         = kmer_bytes;
-  if (kmer_bytes > 8)
+  if (kmer_bytes > KMER_VAL_BYTES)
     hash_table->allocator        = memallocnf_new (hash_table->kmer_bytes, 1024 * 1024 * 512);
   else
     hash_table->allocator        = NULL;
@@ -357,7 +374,7 @@ kmer_hash_table_insert (KmerHashTable *hash_table,
     node->count++;
   else
     {
-      if (hash_table->kmer_bytes > KMER_VAL_SIZE)
+      if (hash_table->kmer_bytes > KMER_VAL_BYTES)
         node->kmer.kmer_ptr = memallocnf_add (hash_table->allocator, kmer);
       else
         {
@@ -396,6 +413,7 @@ kmer_hash_generic (const unsigned char *kmer,
 {
   unsigned long int hash = 0;
   unsigned int      i    = 0;
+
   do
     {
       hash <<= 8;

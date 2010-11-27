@@ -14,14 +14,15 @@
 /* Generic kmer hash table */
 /***************************/
 
-#define KMER_VAL_SIZE 8
+#define KMER_VAL_BYTES 8
+#define KMER_VAL_NUCS  (KMER_VAL_BYTES * NUCS_PER_BYTE)
 
 typedef union _KmerHashKmer KmerHashKmer;
 
 union _KmerHashKmer
 {
   unsigned char *kmer_ptr;
-  unsigned char  kmer_val[KMER_VAL_SIZE];
+  unsigned char  kmer_val[KMER_VAL_BYTES];
 };
 
 typedef struct _KmerHashNode KmerHashNode;
@@ -74,7 +75,9 @@ struct _KmerHashTableIter
   glong          position;
 };
 
-KmerHashTable* kmer_hash_table_new                 (KmerHashFunc         hash_func,
+KmerHashTable* kmer_hash_table_new                 (gsize                kmer_bytes);
+
+KmerHashTable* kmer_hash_table_new_full            (KmerHashFunc         hash_func,
                                                     KmerEqualFunc        key_equal_func,
                                                     gsize                kmer_bytes);
 
