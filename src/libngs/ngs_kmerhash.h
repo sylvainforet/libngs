@@ -61,6 +61,7 @@ struct _KmerHashTable
   glong            nnodes;
   glong            noccupied;  /* nnodes + tombstones */
 
+  gsize            k;
   gsize            kmer_bytes;
 
   KmerHashFunc     hash_func;
@@ -75,11 +76,25 @@ struct _KmerHashTableIter
   glong          position;
 };
 
-KmerHashTable* kmer_hash_table_new                 (gsize                kmer_bytes);
+gulong         kmer_hash_generic                   (const unsigned char *kmer,
+                                                    gsize                size);
+
+int            kmer_equal_generic                  (const unsigned char *kmer1,
+                                                    KmerHashKmer        *kmer2,
+                                                    gsize                size);
+
+gulong         kmer_hash_32bp                      (const unsigned char *kmer,
+                                                    gsize                size);
+
+int            kmer_equal_32bp                     (const unsigned char *kmer1,
+                                                    KmerHashKmer        *kmer2,
+                                                    gsize                size);
+
+KmerHashTable* kmer_hash_table_new                 (gsize                k);
 
 KmerHashTable* kmer_hash_table_new_full            (KmerHashFunc         hash_func,
                                                     KmerEqualFunc        key_equal_func,
-                                                    gsize                kmer_bytes);
+                                                    gsize                k);
 
 void           kmer_hash_table_destroy             (KmerHashTable       *hash_table);
 
@@ -97,19 +112,10 @@ void           kmer_hash_table_iter_init           (KmerHashTableIter   *iter,
 
 KmerHashNode*  kmer_hash_table_iter_next           (KmerHashTableIter   *iter);
 
-gulong         kmer_hash_generic                   (const unsigned char *kmer,
-                                                    gsize                size);
-
-int            kmer_equal_generic                  (const unsigned char *kmer1,
-                                                    KmerHashKmer        *kmer2,
-                                                    gsize                size);
-
-gulong         kmer_hash_32bp                      (const unsigned char *kmer,
-                                                    gsize                size);
-
-int            kmer_equal_32bp                     (const unsigned char *kmer1,
-                                                    KmerHashKmer        *kmer2,
-                                                    gsize                size);
+void           kmer_hash_table_print               (KmerHashTable       *hash_table,
+                                                    const char          *path,
+                                                    int                  binary,
+                                                    GError             **error);
 
 #endif /* __NGS_KMERHASH_H__ */
 

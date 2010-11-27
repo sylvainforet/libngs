@@ -20,9 +20,11 @@
  * Based on Glib's ghash table
  */
 
+#include <unistd.h>
 #include <string.h>
 
 #include "ngs_kmerhash.h"
+#include "ngs_binseq.h"
 
 #define HASH_TABLE_MIN_SHIFT 3  /* 1 << 3 == 8 buckets */
 
@@ -98,6 +100,80 @@ static const glong prime_mod[] =
   9223372036854775783ul,
   18446744073709551557ul
 };
+
+gulong
+kmer_hash_generic (const unsigned char *kmer,
+                   gsize                size)
+{
+  unsigned long int hash = 0;
+  unsigned int      i    = 0;
+
+  do
+    {
+      hash <<= 8;
+      hash  |= kmer[i];
+    }
+  while (++i < size);
+
+  return ((glong)(hash * 2654435769U));;
+}
+
+int
+kmer_equal_generic (const unsigned char *kmer1,
+                    KmerHashKmer        *kmer2,
+                    gsize                size)
+{
+  unsigned int i;
+
+  for (i = 0; i < size; i++)
+    if (kmer1[i] != kmer2->kmer_ptr[i])
+      return 0;
+
+  return 1;
+}
+
+gulong
+kmer_hash_32bp (const unsigned char *kmer,
+                gsize                size)
+{
+  gulong key = *((gulong*)kmer);
+
+  key = (~key) + (key << 21);
+  key = key ^ (key >> 24);
+  key = (key + (key << 3)) + (key << 8);
+  key = key ^ (key >> 14);
+  key = (key + (key << 2)) + (key << 4);
+  key = key ^ (key >> 28);
+  key = key + (key << 31);
+
+  return key;
+}
+
+int
+kmer_equal_32bp (const unsigned char *kmer1,
+                 KmerHashKmer        *kmer2,
+                 gsize                size)
+{
+  /* Completely unrolled */
+  const int b1 = (kmer1[0] == kmer2->kmer_val[0]);
+  const int b2 = (kmer1[1] == kmer2->kmer_val[1]);
+  const int b3 = (kmer1[2] == kmer2->kmer_val[2]);
+  const int b4 = (kmer1[3] == kmer2->kmer_val[3]);
+  const int b5 = (kmer1[4] == kmer2->kmer_val[4]);
+  const int b6 = (kmer1[5] == kmer2->kmer_val[5]);
+  const int b7 = (kmer1[6] == kmer2->kmer_val[6]);
+  const int b8 = (kmer1[7] == kmer2->kmer_val[7]);
+
+  const int b12 = b1 && b2;
+  const int b34 = b3 && b4;
+  const int b56 = b5 && b6;
+  const int b78 = b7 && b8;
+
+  const int b1234 = b12 && b34;
+  const int b5678 = b56 && b78;
+
+  return b1234 && b5678;
+}
 
 static void
 kmer_hash_table_set_shift (KmerHashTable *hash_table,
@@ -179,7 +255,8 @@ kmer_hash_table_lookup (KmerHashTable       *hash_table,
   gulong        step = 0;
 
   /* Empty buckets have hash_value set to 0, and for tombstones, it's 1.
-   * We need to make sure our hash value is not one of these. */
+   * We need to make sure our hash value is not one of these.
+   */
   hash_value = (* hash_table->hash_func) (kmer, hash_table->kmer_bytes);
   if (G_UNLIKELY (hash_value <= 1))
     hash_value = 2;
@@ -189,9 +266,9 @@ kmer_hash_table_lookup (KmerHashTable       *hash_table,
 
   while (node->key_hash)
     {
-      /*  We first check if our full hash values
-       *  are equal so we can avoid calling the full-blown
-       *  key equality function in most cases.
+      /* We first check if our full hash values
+       * are equal so we can avoid calling the full-blown
+       * key equality function in most cases.
        */
       if (node->key_hash == hash_value)
         if (hash_table->key_equal_func (kmer, &node->kmer, hash_table->kmer_bytes))
@@ -218,7 +295,8 @@ kmer_hash_table_lookup_node_for_insertion (KmerHashTable       *hash_table,
   gulong        step            = 0;
 
   /* Empty buckets have hash_value set to 0, and for tombstones, it's 1.
-   * We need to make sure our hash value is not one of these. */
+   * We need to make sure our hash value is not one of these.
+   */
   hash_value = (* hash_table->hash_func) (kmer, hash_table->kmer_bytes);
   if (G_UNLIKELY (hash_value <= 1))
     hash_value = 2;
@@ -229,9 +307,9 @@ kmer_hash_table_lookup_node_for_insertion (KmerHashTable       *hash_table,
 
   while (node->key_hash)
     {
-      /*  We first check if our full hash values
-       *  are equal so we can avoid calling the full-blown
-       *  key equality function in most cases.
+      /* We first check if our full hash values
+       * are equal so we can avoid calling the full-blown
+       * key equality function in most cases.
        */
       if (node->key_hash == hash_value)
         {
@@ -257,7 +335,7 @@ kmer_hash_table_lookup_node_for_insertion (KmerHashTable       *hash_table,
 static void
 kmer_hash_table_resize (KmerHashTable *hash_table)
 {
-/*
+  /*
   KmerHashNode *new_nodes;
   glong old_size;
   glong i;
@@ -294,7 +372,9 @@ kmer_hash_table_resize (KmerHashTable *hash_table)
   g_free (hash_table->nodes);
   hash_table->nodes = new_nodes;
   hash_table->noccupied = hash_table->nnodes;
-*/
+  */
+
+  /* TODO check how to tombstones are handled */
 
 #define IS_TOUCHED(i) ((touched[(i) / 8] >> ((i) & 7)) & 1)
 #define SET_TOUCHED(i) (touched[(i) / 8] |= (1 << ((i) & 7)))
@@ -304,8 +384,11 @@ kmer_hash_table_resize (KmerHashTable *hash_table)
   glong          i;
 
   kmer_hash_table_set_shift_from_size (hash_table, hash_table->nnodes * 2);
-  hash_table->nodes = g_realloc (hash_table->nodes, hash_table->size * sizeof (*hash_table->nodes));
-  memset (hash_table->nodes + old_size, 0, (hash_table->size - old_size) * sizeof (*hash_table->nodes));
+  hash_table->nodes = g_realloc (hash_table->nodes,
+                                 hash_table->size * sizeof (*hash_table->nodes));
+  memset (hash_table->nodes + old_size,
+          0,
+          (hash_table->size - old_size) * sizeof (*hash_table->nodes));
   touched = g_malloc0 ((old_size / 8 + 1) * sizeof (*touched));
 
   for (i = 0; i < old_size; i++)
@@ -372,18 +455,18 @@ kmer_hash_table_maybe_resize (KmerHashTable *hash_table)
 }
 
 KmerHashTable*
-kmer_hash_table_new (gsize kmer_bytes)
+kmer_hash_table_new (gsize k)
 {
   KmerHashTable *hash_table;
 
-  if (kmer_bytes <= KMER_VAL_BYTES)
+  if (k <= KMER_VAL_NUCS)
     hash_table = kmer_hash_table_new_full (kmer_hash_32bp,
                                            kmer_equal_32bp,
-                                           kmer_bytes);
+                                           k);
   else
     hash_table = kmer_hash_table_new_full (kmer_hash_generic,
                                            kmer_equal_generic,
-                                           kmer_bytes);
+                                           k);
 
   return hash_table;
 }
@@ -391,7 +474,7 @@ kmer_hash_table_new (gsize kmer_bytes)
 KmerHashTable*
 kmer_hash_table_new_full (KmerHashFunc  hash_func,
                           KmerEqualFunc key_equal_func,
-                          gsize         kmer_bytes)
+                          gsize         k)
 {
   KmerHashTable *hash_table;
 
@@ -402,8 +485,9 @@ kmer_hash_table_new_full (KmerHashFunc  hash_func,
   hash_table->hash_func          = hash_func;
   hash_table->key_equal_func     = key_equal_func;
   hash_table->nodes              = g_new0 (KmerHashNode, hash_table->size);
-  hash_table->kmer_bytes         = kmer_bytes;
-  if (kmer_bytes > KMER_VAL_BYTES)
+  hash_table->k                  = k;
+  hash_table->kmer_bytes         = (k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
+  if (k > KMER_VAL_NUCS)
     hash_table->allocator        = memallocnf_new (hash_table->kmer_bytes, 1024 * 1024 * 512);
   else
     hash_table->allocator        = NULL;
@@ -511,79 +595,118 @@ kmer_hash_table_lookup_or_create (KmerHashTable       *hash_table,
   return node;
 }
 
-gulong
-kmer_hash_generic (const unsigned char *kmer,
-                   gsize                size)
-{
-  unsigned long int hash = 0;
-  unsigned int      i    = 0;
+/* fast itoa implementarion, does not zero terminate the buffer and only works
+ * with positive numbers */
+#define uitoa_no0(i, buf, buf_size, ret, n_chars)   \
+do {                                                \
+  ret = buf + buf_size;                             \
+  do {                                              \
+      *--ret = '0' + (i % 10);                      \
+      i /= 10;                                      \
+      ++n_chars;                                    \
+  } while (i != 0);                                 \
+} while (0)
 
-  do
+#define DIGITS_BUFF_SPACE 32
+
+void
+kmer_hash_table_print (KmerHashTable       *hash_table,
+                       const char          *path,
+                       int                  binary,
+                       GError             **error)
+{
+  KmerHashTableIter  iter;
+  KmerHashNode      *hnode;
+  GIOChannel        *channel;
+  char              *buffer;
+  GError            *tmp_error      = NULL;
+  gsize              bin_write_size = 0;
+  int                use_stdout     = 1;
+
+  /* Open */
+  if (!path || !*path || (path[0] == '-' && path[1] == '\0'))
+    channel = g_io_channel_unix_new (STDOUT_FILENO);
+  else
     {
-      hash <<= 8;
-      hash  |= kmer[i];
+      use_stdout = 0;
+      channel    = g_io_channel_new_file (path, "w", &tmp_error);
+      if (tmp_error)
+        {
+          g_propagate_error (error, tmp_error);
+          return ;
+        }
     }
-  while (++i < size);
+  g_io_channel_set_encoding (channel, NULL, NULL);
+  g_io_channel_set_buffer_size (channel, 1024 * 1024);
 
-  return ((glong)(hash * 2654435769U));;
+
+  /* Write */
+  if (binary)
+    bin_write_size = hash_table->kmer_bytes + sizeof (unsigned long int);
+
+  buffer = g_alloca (hash_table->k + DIGITS_BUFF_SPACE);
+  buffer[hash_table->k + DIGITS_BUFF_SPACE - 1] = '\n';
+  kmer_hash_table_iter_init (&iter, hash_table);
+  while ((hnode = kmer_hash_table_iter_next (&iter)) != NULL)
+    {
+      int j;
+      if (binary)
+        {
+          for (j = 0; j < hash_table->kmer_bytes; j++)
+            {
+              if (hash_table->k <= KMER_VAL_NUCS)
+                buffer[j] = hnode->kmer.kmer_val[j];
+              else
+                buffer[j] = hnode->kmer.kmer_ptr[j];
+            }
+          *((unsigned long int*)(buffer + j)) = GULONG_TO_BE (hnode->count);
+          g_io_channel_write_chars (channel,
+                                    (char*)buffer, bin_write_size,
+                                    NULL, &tmp_error);
+        }
+      else
+        {
+          char             *buffer_ptr;
+          unsigned long int n;
+
+          j             = 1;
+          n             = hnode->count;
+          uitoa_no0 (n, buffer, hash_table->k + DIGITS_BUFF_SPACE - 1, buffer_ptr, j);
+          *--buffer_ptr = ' ';
+          j            += 1 + hash_table->k;
+          buffer_ptr   -= hash_table->k;
+          if (hash_table->k <= KMER_VAL_NUCS)
+            bin_to_char_prealloc (buffer_ptr, hnode->kmer.kmer_val, hash_table->k);
+          else
+            bin_to_char_prealloc (buffer_ptr, hnode->kmer.kmer_ptr, hash_table->k);
+          g_io_channel_write_chars (channel,
+                                    buffer_ptr, j,
+                                    NULL, &tmp_error);
+        }
+      if (tmp_error)
+        {
+          g_propagate_error (error, tmp_error);
+          tmp_error = NULL;
+          break;
+        }
+    }
+
+  /* Close */
+  if (!use_stdout)
+    {
+      g_io_channel_shutdown (channel, TRUE, &tmp_error);
+      if (tmp_error)
+        {
+          g_printerr ("[ERROR] Closing output file `%s' failed: %s\n",
+                      path,
+                      tmp_error->message);
+          g_error_free (tmp_error);
+        }
+    }
+  g_io_channel_unref (channel);
 }
 
-int
-kmer_equal_generic (const unsigned char *kmer1,
-                    KmerHashKmer        *kmer2,
-                    gsize                size)
-{
-  unsigned int i;
-
-  for (i = 0; i < size; i++)
-    if (kmer1[i] != kmer2->kmer_ptr[i])
-      return 0;
-
-  return 1;
-}
-
-gulong
-kmer_hash_32bp (const unsigned char *kmer,
-                gsize                size)
-{
-  gulong key = *((gulong*)kmer);
-
-  key = (~key) + (key << 21);
-  key = key ^ (key >> 24);
-  key = (key + (key << 3)) + (key << 8);
-  key = key ^ (key >> 14);
-  key = (key + (key << 2)) + (key << 4);
-  key = key ^ (key >> 28);
-  key = key + (key << 31);
-
-  return key;
-}
-
-/* Completely unrolled */
-int
-kmer_equal_32bp (const unsigned char *kmer1,
-                 KmerHashKmer        *kmer2,
-                 gsize                size)
-{
-  const int b1 = (kmer1[0] == kmer2->kmer_val[0]);
-  const int b2 = (kmer1[1] == kmer2->kmer_val[1]);
-  const int b3 = (kmer1[2] == kmer2->kmer_val[2]);
-  const int b4 = (kmer1[3] == kmer2->kmer_val[3]);
-  const int b5 = (kmer1[4] == kmer2->kmer_val[4]);
-  const int b6 = (kmer1[5] == kmer2->kmer_val[5]);
-  const int b7 = (kmer1[6] == kmer2->kmer_val[6]);
-  const int b8 = (kmer1[7] == kmer2->kmer_val[7]);
-
-  const int b12 = b1 && b2;
-  const int b34 = b3 && b4;
-  const int b56 = b5 && b6;
-  const int b78 = b7 && b8;
-
-  const int b1234 = b12 && b34;
-  const int b5678 = b56 && b78;
-
-  return b1234 && b5678;
-}
+#undef DIGITS_BUFF_SPACE
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */

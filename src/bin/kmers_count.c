@@ -31,17 +31,6 @@
 #include "ngs_memalloc.h"
 #include "ngs_utils.h"
 
-/* fast itoa implementarion, does not zero terminate the buffer and only works
- * with positive numbers */
-#define uitoa_no0(i, buf, buf_size, ret, n_chars)   \
-do {                                                \
-  ret = buf + buf_size;                             \
-  do {                                              \
-      *--ret = '0' + (i % 10);                      \
-      i /= 10;                                      \
-      ++n_chars;                                    \
-  } while (i != 0);                                 \
-} while (0)
 
 typedef struct _CallbackData CallbackData;
 
@@ -89,8 +78,6 @@ static int               iter_char_seq              (CallbackData        *data,
                                                      unsigned long int    size);
 
 static void              print_results              (CallbackData        *data);
-
-static void              do_print_results           (CallbackData        *data);
 
 int
 main (int    argc,
@@ -187,7 +174,7 @@ parse_args (CallbackData      *data,
   data->k_bytes    = (data->k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
   data->input_path = (*argv)[1];
 
-  data->htable   = kmer_hash_table_new (data->k_bytes);
+  data->htable   = kmer_hash_table_new (data->k);
   data->tmp_kmer = g_malloc0 (MAX (KMER_VAL_BYTES, data->k_bytes));
 
   if (data->verbose)
@@ -231,103 +218,25 @@ iter_func_char (char              *seq,
 static void
 print_results (CallbackData *data)
 {
-  GError *error      = NULL;
-  int     use_stdout = 1;
+  GError *error = NULL;
 
   if (data->verbose)
-    g_printerr ("Printing results\n");
-  /* Open */
-  if (!data->output_path || !*data->output_path || (data->output_path[0] == '-' && data->output_path[1] == '\0'))
-    data->output_channel = g_io_channel_unix_new (STDOUT_FILENO);
-  else
+    g_printerr ("Writing results to %s\n", data->output_path);
+
+  kmer_hash_table_print (data->htable,
+                         data->output_path,
+                         data->bin_out,
+                         &error);
+
+  if (error)
     {
-      use_stdout     = 0;
-      data->output_channel = g_io_channel_new_file (data->output_path, "w", &error);
-      if (error)
-        {
-          g_printerr ("[ERROR] failed to open output file `%s': %s\n",
-                      data->output_path,
-                      error->message);
-          exit (1);
-        }
-    }
-  g_io_channel_set_encoding (data->output_channel, NULL, NULL);
-  g_io_channel_set_buffer_size (data->output_channel, 1024 * 1024);
-
-  do_print_results (data);
-
-  /* Close */
-  if (!use_stdout)
-    {
-      g_io_channel_shutdown (data->output_channel, TRUE, &error);
-      if (error)
-        {
-          g_printerr ("[ERROR] Closing output file `%s' failed: %s\n",
-                      data->output_path,
-                      error->message);
-          g_error_free (error);
-        }
-    }
-  g_io_channel_unref (data->output_channel);
-}
-
-#define DIGITS_BUFF_SPACE 32
-static void
-do_print_results (CallbackData *data)
-{
-  KmerHashTableIter  iter;
-  KmerHashNode      *hnode;
-  char              *buffer;
-  GError            *error = NULL;
-
-  buffer = g_alloca (data->k + DIGITS_BUFF_SPACE);
-  buffer[data->k + DIGITS_BUFF_SPACE - 1] = '\n';
-  kmer_hash_table_iter_init (&iter, data->htable);
-  while ((hnode = kmer_hash_table_iter_next (&iter)) != NULL)
-    {
-      int j;
-      if (data->bin_out)
-        {
-          for (j = 0; j < data->k_bytes; j++)
-            {
-              if (data->k <= KMER_VAL_NUCS)
-                buffer[j] = hnode->kmer.kmer_val[j];
-              else
-                buffer[j] = hnode->kmer.kmer_ptr[j];
-            }
-          *((unsigned long int*)(buffer + j)) = GULONG_TO_BE (hnode->count);
-          g_io_channel_write_chars (data->output_channel,
-                                    (char*)buffer, data->k_bytes + sizeof (unsigned long int),
-                                    NULL, &error);
-        }
-      else
-        {
-          char             *buffer_ptr;
-          unsigned long int n;
-
-          j             = 1;
-          n             = hnode->count;
-          uitoa_no0 (n, buffer, data->k + DIGITS_BUFF_SPACE - 1, buffer_ptr, j);
-          *--buffer_ptr = ' ';
-          j            += 1 + data->k;
-          buffer_ptr   -= data->k;
-          if (data->k <= KMER_VAL_NUCS)
-            bin_to_char_prealloc (buffer_ptr, hnode->kmer.kmer_val, data->k);
-          else
-            bin_to_char_prealloc (buffer_ptr, hnode->kmer.kmer_ptr, data->k);
-          g_io_channel_write_chars (data->output_channel,
-                                    buffer_ptr, j,
-                                    NULL, &error);
-        }
-      if (error)
-        {
-          g_printerr ("[ERROR] Writing to output file `%s' failed: %s\n",
-                      data->output_path,
-                      error->message);
-          exit (1);
-        }
+      g_printerr ("[ERROR] Closing output file `%s' failed: %s\n",
+                  data->output_path,
+                  error->message);
+      g_error_free (error);
     }
 }
+
 #undef DIGITS_BUFF_SPACE
 
 static int
