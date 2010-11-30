@@ -101,6 +101,10 @@ void           kmer_hash_table_destroy             (KmerHashTable       *hash_ta
 void           kmer_hash_table_increment           (KmerHashTable       *hash_table,
                                                     const unsigned char *kmer);
 
+void           kmer_hash_table_add_count           (KmerHashTable       *hash_table,
+                                                    const unsigned char *kmer,
+                                                    glong                count);
+
 KmerHashNode*  kmer_hash_table_lookup_or_create    (KmerHashTable       *hash_table,
                                                     const unsigned char *kmer);
 
@@ -113,6 +117,11 @@ void           kmer_hash_table_iter_init           (KmerHashTableIter   *iter,
 KmerHashNode*  kmer_hash_table_iter_next           (KmerHashTableIter   *iter);
 
 void           kmer_hash_table_print               (KmerHashTable       *hash_table,
+                                                    const char          *path,
+                                                    int                  binary,
+                                                    GError             **error);
+
+void           kmer_hash_table_load                (KmerHashTable       *hash_table,
                                                     const char          *path,
                                                     int                  binary,
                                                     GError             **error);

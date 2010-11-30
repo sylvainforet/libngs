@@ -23,8 +23,9 @@
 #include <unistd.h>
 #include <string.h>
 
-#include "ngs_kmerhash.h"
 #include "ngs_binseq.h"
+#include "ngs_kmerhash.h"
+#include "ngs_utils.h"
 
 #define HASH_TABLE_MIN_SHIFT 3  /* 1 << 3 == 8 buckets */
 
@@ -540,6 +541,14 @@ void
 kmer_hash_table_increment (KmerHashTable       *hash_table,
                            const unsigned char *kmer)
 {
+  kmer_hash_table_add_count (hash_table, kmer, 1);
+}
+
+void
+kmer_hash_table_add_count (KmerHashTable       *hash_table,
+                           const unsigned char *kmer,
+                           glong                count)
+{
   KmerHashNode *node;
   gulong node_index;
   gulong key_hash;
@@ -550,11 +559,11 @@ kmer_hash_table_increment (KmerHashTable       *hash_table,
   old_hash   = node->key_hash;
 
   if (old_hash > 1)
-    node->count++;
+    node->count += count;
   else
     {
       kmer_hash_table_copy_kmer (hash_table, kmer, &node->kmer);
-      node->count    = 1;
+      node->count    = count;
       node->key_hash = key_hash;
       hash_table->nnodes++;
       if (old_hash == 0)
@@ -583,6 +592,7 @@ kmer_hash_table_lookup_or_create (KmerHashTable       *hash_table,
     {
       kmer_hash_table_copy_kmer (hash_table, kmer, &node->kmer);
       node->key_hash = key_hash;
+      node->count    = 0;
       node->value    = NULL;
       hash_table->nnodes++;
       if (old_hash == 0)
@@ -608,6 +618,7 @@ do {                                                \
 } while (0)
 
 #define DIGITS_BUFF_SPACE 32
+#define CHANNEL_BUFFER_SIZE (4096 * 1024)
 
 void
 kmer_hash_table_print (KmerHashTable       *hash_table,
@@ -637,12 +648,12 @@ kmer_hash_table_print (KmerHashTable       *hash_table,
         }
     }
   g_io_channel_set_encoding (channel, NULL, NULL);
-  g_io_channel_set_buffer_size (channel, 1024 * 1024);
+  g_io_channel_set_buffer_size (channel, CHANNEL_BUFFER_SIZE);
 
 
   /* Write */
   if (binary)
-    bin_write_size = hash_table->kmer_bytes + sizeof (unsigned long int);
+    bin_write_size = hash_table->kmer_bytes + sizeof (gulong);
 
   buffer = g_alloca (hash_table->k + DIGITS_BUFF_SPACE);
   buffer[hash_table->k + DIGITS_BUFF_SPACE - 1] = '\n';
@@ -706,7 +717,256 @@ kmer_hash_table_print (KmerHashTable       *hash_table,
   g_io_channel_unref (channel);
 }
 
+
+static void
+kmer_hash_table_load_text (KmerHashTable *hash_table,
+                           const char    *path,
+                           GError       **error)
+{
+  GIOChannel    *channel;
+  char          *buffer;
+  char          *kmer;
+  unsigned char *bin_kmer;
+  GError        *tmp_error    = NULL;
+  gsize          bytes_read   = 0;
+  gsize          letters_read = 0;
+  gulong         count        = 0;
+  int            use_stdin    = 1;
+  int            in_kmer      = 1;
+
+  /* Open */
+  if (!path || !*path || (path[0] == '-' && path[1] == '\0'))
+    channel = g_io_channel_unix_new (STDIN_FILENO);
+  else
+    {
+      use_stdin = 0;
+      channel   = g_io_channel_new_file (path, "r", &tmp_error);
+      if (tmp_error)
+        {
+          g_propagate_error (error, tmp_error);
+          return ;
+        }
+    }
+  g_io_channel_set_encoding (channel, NULL, NULL);
+  g_io_channel_set_buffer_size (channel, CHANNEL_BUFFER_SIZE);
+
+  /* Read */
+  buffer   = g_malloc (CHANNEL_BUFFER_SIZE);
+  kmer     = g_malloc (hash_table->k);
+  bin_kmer = g_malloc (hash_table->kmer_bytes);
+  while (1)
+    {
+      /* Each record is: '[ATGC]+ \d+\n' */
+      GIOStatus status;
+      int       i;
+
+      status = g_io_channel_read_chars (channel,
+                                        buffer,
+                                        CHANNEL_BUFFER_SIZE,
+                                        &bytes_read,
+                                        &tmp_error);
+      if (tmp_error)
+        {
+          g_propagate_error (error, tmp_error);
+          tmp_error = NULL;
+          goto cleanup;
+        }
+      for (i = 0; i < bytes_read; i++)
+        {
+          if (in_kmer)
+            {
+              if (buffer[i] == ' ')
+                {
+                  g_set_error (error,
+                               NGS_ERROR,
+                               NGS_PARSE_ERROR,
+                               "Incomplete kmer "
+                               "(expected %lu letters, found %lu)",
+                               hash_table->k,
+                               letters_read);
+                  goto cleanup;
+                }
+              else if (buffer[i] != 'A' &&
+                       buffer[i] != 'a' &&
+                       buffer[i] != 'C' &&
+                       buffer[i] != 'c' &&
+                       buffer[i] != 'G' &&
+                       buffer[i] != 'g' &&
+                       buffer[i] != 'T' &&
+                       buffer[i] != 't')
+                {
+                  g_set_error (error,
+                               NGS_ERROR,
+                               NGS_PARSE_ERROR,
+                               "Unknown letter in kmer: `%c'",
+                               buffer[i]);
+                  goto cleanup;
+                }
+              kmer[letters_read] = buffer[i];
+              letters_read++;
+              if (letters_read == hash_table->k)
+                {
+                  char_to_bin_prealloc (bin_kmer, kmer, hash_table->k);
+                  in_kmer = 0;
+                }
+            }
+          else
+            {
+              if (buffer[i] == '\n')
+                {
+                  kmer_hash_table_add_count (hash_table, bin_kmer, count);
+                  count        = 0;
+                  in_kmer      = 1;
+                  letters_read = 0;
+                }
+              else if (buffer[i] != ' ')
+                {
+                  if (buffer[i] < '0' || buffer[i] > '9')
+                    {
+                      g_set_error (error,
+                                   NGS_ERROR,
+                                   NGS_PARSE_ERROR,
+                                   "Unknown letter in kmer count: `%c'",
+                                   buffer[i]);
+                      goto cleanup;
+                    }
+                  count = 10 * count + (buffer[i] - '0');
+                }
+            }
+        }
+      if (status == G_IO_STATUS_EOF)
+        break;
+    }
+  if (!in_kmer || letters_read != 0)
+    g_set_error (error,
+                 NGS_ERROR,
+                 NGS_PARSE_ERROR,
+                 "Incomplete kmer count record");
+cleanup:
+  g_free (buffer);
+  g_free (kmer);
+  g_free (bin_kmer);
+
+  /* Close */
+  if (!use_stdin)
+    {
+      g_io_channel_shutdown (channel, TRUE, &tmp_error);
+      if (tmp_error)
+        {
+          g_printerr ("[ERROR] Closing output file `%s' failed: %s\n",
+                      path,
+                      tmp_error->message);
+          g_error_free (tmp_error);
+        }
+    }
+  g_io_channel_unref (channel);
+}
+
+#undef READ_BUFFER_SIZE
 #undef DIGITS_BUFF_SPACE
+
+static void
+kmer_hash_table_load_bin (KmerHashTable *hash_table,
+                          const char    *path,
+                          GError       **error)
+{
+  GIOChannel    *channel;
+  char          *buffer;
+  GError        *tmp_error    = NULL;
+  gsize          bytes_read   = 0;
+  gsize          buffer_size  = 0;
+  gsize          record_size  = 0;
+  int            use_stdin    = 1;
+
+  /* Open */
+  if (!path || !*path || (path[0] == '-' && path[1] == '\0'))
+    channel = g_io_channel_unix_new (STDIN_FILENO);
+  else
+    {
+      use_stdin = 0;
+      channel   = g_io_channel_new_file (path, "r", &tmp_error);
+      if (tmp_error)
+        {
+          g_propagate_error (error, tmp_error);
+          return ;
+        }
+    }
+  record_size = hash_table->kmer_bytes + sizeof (gulong);
+  buffer_size = (CHANNEL_BUFFER_SIZE / record_size) * record_size;
+  g_io_channel_set_encoding (channel, NULL, NULL);
+  g_io_channel_set_buffer_size (channel, buffer_size);
+
+  /* Read */
+  buffer   = g_malloc (buffer_size);
+  while (1)
+    {
+      /* Each record is: '[ATGC]+ \d+\n' */
+      GIOStatus status;
+      int       i;
+
+      status = g_io_channel_read_chars (channel,
+                                        buffer,
+                                        buffer_size,
+                                        &bytes_read,
+                                        &tmp_error);
+      if (tmp_error)
+        {
+          g_propagate_error (error, tmp_error);
+          tmp_error = NULL;
+          break;
+        }
+      if ((bytes_read / record_size) * record_size != bytes_read)
+        {
+          g_set_error (error,
+                       NGS_ERROR,
+                       NGS_PARSE_ERROR,
+                       "Incomplete kmer count record");
+          goto cleanup;
+        }
+      for (i = 0; i < bytes_read; i += record_size)
+        {
+          unsigned char *bin_kmer;
+          gulong        *count_ptr;
+          gulong         count;
+
+          bin_kmer  = (unsigned char*)buffer + i;
+          count_ptr = (gulong*)(buffer + i + hash_table->kmer_bytes);
+          count     = GULONG_FROM_BE (*count_ptr);
+          kmer_hash_table_add_count (hash_table, bin_kmer, count);
+        }
+      if (status == G_IO_STATUS_EOF)
+        break;
+    }
+
+cleanup:
+  g_free (buffer);
+
+  /* Close */
+  if (!use_stdin)
+    {
+      g_io_channel_shutdown (channel, TRUE, &tmp_error);
+      if (tmp_error)
+        {
+          g_printerr ("[ERROR] Closing output file `%s' failed: %s\n",
+                      path,
+                      tmp_error->message);
+          g_error_free (tmp_error);
+        }
+    }
+  g_io_channel_unref (channel);
+}
+
+void
+kmer_hash_table_load (KmerHashTable *hash_table,
+                      const char    *path,
+                      int            binary,
+                      GError       **error)
+{
+  if (binary)
+    kmer_hash_table_load_bin (hash_table, path, error);
+  else
+    kmer_hash_table_load_text (hash_table, path, error);
+}
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */
