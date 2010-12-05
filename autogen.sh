@@ -1,7 +1,7 @@
 #!/bin/sh
 
 set -x
-aclocal
+aclocal -I build
 libtoolize --force --copy
 autoheader
 automake --add-missing --copy

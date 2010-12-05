@@ -1,4 +1,4 @@
-#ACLOCAL_AMFLAGS = -I m4
+ACLOCAL_AMFLAGS = -I build
 
 SUBDIRS = \
 	src
@@ -9,15 +9,20 @@ EXTRA_DIST = \
 MAINTAINERCLEANFILES = \
 	Makefile.in \
 	aclocal.m4 \
-	compile \
-	config.guess \
 	config.h.in \
 	config.log \
-	config.sub \
 	configure \
-	depcomp \
-	install-sh \
-	ltmain.sh \
-	missing \
-	mkinstalldirs \
-	stamp-h.in
+	stamp-h.in \
+	build/compile \
+	build/config.guess \
+	build/config.sub \
+	build/depcomp \
+	build/install-sh \
+	build/ltmain.sh \
+	build/libtool.m4 \
+	build/ltoptions.m4 \
+	build/ltsugar.m4 \
+	build/ltversion.m4 \
+	build/lt~obsolete.m4 \
+	build/missing \
+	build/mkinstalldirs

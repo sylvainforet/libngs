@@ -2,6 +2,8 @@
 AC_PREREQ([2.54])
 
 AC_INIT([ngs], [0.0.2], [sylvain foret at anu edu au])
+AC_CONFIG_AUX_DIR(build)
+AC_CONFIG_MACRO_DIR(build)
 AC_CONFIG_SRCDIR([src/libngs/ngs_fastq.h])
 AM_INIT_AUTOMAKE(AC_PACKAGE_TARNAME, AC_PACKAGE_VERSION)
 AM_CONFIG_HEADER(config.h)
@@ -14,8 +16,6 @@ AC_PROG_LIBTOOL
 AM_PROG_CC_STDC
 AM_PROG_LEX
 PKG_PROG_PKG_CONFIG
-
-#AC_CONFIG_MACRO_DIR([m4])
 
 # Checks for pkg-config
 ### TODO
