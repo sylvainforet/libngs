@@ -489,7 +489,7 @@ kmer_hash_table_new_full (KmerHashFunc  hash_func,
   hash_table->k                  = k;
   hash_table->kmer_bytes         = (k + NUCS_PER_BYTE - 1) / NUCS_PER_BYTE;
   if (k > KMER_VAL_NUCS)
-    hash_table->allocator        = memallocnf_new (hash_table->kmer_bytes, 1024 * 1024 * 512);
+    hash_table->allocator        = memallocnf_new (hash_table->kmer_bytes, 1024 * 1024 * 32);
   else
     hash_table->allocator        = NULL;
 

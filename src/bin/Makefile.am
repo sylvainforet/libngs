@@ -33,7 +33,8 @@ bin_PROGRAMS = \
 	cg_meth_count \
 	cg_meth_dist \
 	kmers_count \
-	kmers_count_tool
+	kmers_count_tool \
+	kmers_remove_clonal
 
 fastq2fasta_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
@@ -149,6 +150,11 @@ kmers_count_tool_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 kmers_count_tool_SOURCES = \
 	kmers_count_tool.c
+
+kmers_remove_clonal_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+kmers_remove_clonal_SOURCES = \
+	kmers_remove_clonal.c
 
 MAINTAINERCLEANFILES = \
 	Makefile.in

@@ -71,15 +71,13 @@ main (int    argc,
   if (error)
     {
       g_printerr ("[ERROR] Opening %s failed: %s\n", data.input_path1, error->message);
-      g_error_free (error);
-      error = NULL;
+      exit (1);
     }
   iter2 = fastq_iter_new (data.input_path2, &error);
   if (error)
     {
       g_printerr ("[ERROR] Opening %s failed: %s\n", data.input_path2, error->message);
-      g_error_free (error);
-      error = NULL;
+      exit (1);
     }
 
 
