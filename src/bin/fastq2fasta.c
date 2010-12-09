@@ -34,6 +34,10 @@ struct _CallbackData
   char       *out_qual_path;
   GIOChannel *out_seq_channel;
   GIOChannel *out_qual_channel;
+
+  char      **qual_2_str_table;
+  int         sanger;
+
   int         do_seq;
   int         do_qual;
 
@@ -111,6 +115,7 @@ parse_args (CallbackData   *data,
       {"quality" , 'q', 0, G_OPTION_ARG_NONE,     &data->do_qual,       "Extract qualities", NULL},
       {"seqout"  , 'o', 0, G_OPTION_ARG_FILENAME, &data->out_seq_path,  "Sequences file"   , NULL},
       {"qualout" , 'u', 0, G_OPTION_ARG_FILENAME, &data->out_qual_path, "Qualities file"   , NULL},
+      {"sanger",   'g', 0, G_OPTION_ARG_NONE,     &data->sanger,        "Qualities in sanger format", NULL},
       {NULL}
     };
   GError         *error = NULL;
@@ -124,6 +129,7 @@ parse_args (CallbackData   *data,
   data->out_qual_channel = NULL;
   data->seq_use_stdout   = 1;
   data->qual_use_stdout  = 0;
+  data->sanger           = 0;
 
   context = g_option_context_new ("FILE - Converts a fastq file to a fasta file");
   g_option_context_add_group (context, get_fastq_option_group ());
@@ -190,6 +196,10 @@ parse_args (CallbackData   *data,
             }
         }
     }
+
+  data->qual_2_str_table = fastq_qual_char_2_string;
+  if (data->sanger)
+    data->qual_2_str_table = fastq_qual_char_2_string_sanger;
 }
 
 static int
@@ -234,7 +244,7 @@ iter_func (FastqSeq     *fastq,
       buffer = g_string_append (buffer, fastq->name);
       buffer = g_string_append_c (buffer, '\n');
       for (i = 0; i < fastq->size; i++)
-        buffer = g_string_append (buffer, fastq_qual_char_2_string[(int)fastq->qual[i]]);
+        buffer = g_string_append (buffer, data->qual_2_str_table[(int)fastq->qual[i]]);
       buffer = g_string_append_c (buffer, '\n');
 
       g_io_channel_write_chars (data->out_qual_channel,

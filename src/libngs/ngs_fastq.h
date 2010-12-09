@@ -25,6 +25,7 @@ struct _FastqSeq
 #define FASTQ_QUAL_0_SANGER 37 /* '%' */
 
 extern char *fastq_qual_char_2_string[];
+extern char *fastq_qual_char_2_string_sanger[];
 
 FastqSeq*   fastq_seq_new    (void);
 

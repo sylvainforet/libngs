@@ -117,7 +117,7 @@ parse_args (CallbackData      *data,
       {"win",    'w', 0, G_OPTION_ARG_INT,  &data->win,    "Size of the slidding window", NULL},
       {"qwin",   'n', 0, G_OPTION_ARG_INT,  &data->qwin,   "Minimum sliding window mean quality", NULL},
       {"keep",   'k', 0, G_OPTION_ARG_NONE, &data->keep,   "Keep an pseudo-entry for too small reads", NULL},
-      {"sanger", 'g', 0, G_OPTION_ARG_NONE, &data->sanger, "Qualities are in sanger format", NULL},
+      {"sanger", 'g', 0, G_OPTION_ARG_NONE, &data->sanger, "Qualities in sanger format", NULL},
       {NULL}
     };
   GError         *error = NULL;
@@ -134,7 +134,6 @@ parse_args (CallbackData      *data,
   data->qwin           = 0;
   data->keep           = 0;
   data->sanger         = 0;
-  data->qual0          = 0;
 
   context = g_option_context_new ("FILE - trims fastq reads");
   g_option_context_add_group (context, get_fastq_option_group ());

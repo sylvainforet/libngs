@@ -42,6 +42,9 @@ struct _CallbackData
   char              *input_path;
 
   unsigned int       fast;
+
+  int                sanger;
+  int                qual0;
 };
 
 static void parse_args            (CallbackData      *data,
@@ -97,13 +100,15 @@ parse_args (CallbackData      *data,
 {
   GOptionEntry entries[] =
     {
-      {"fast", 'f', 0, G_OPTION_ARG_NONE, &data->fast, "Faster and less robust method (use at your own risk)", NULL},
+      {"fast",   'f', 0, G_OPTION_ARG_NONE, &data->fast,   "Faster and less robust method (use at your own risk)", NULL},
+      {"sanger", 'g', 0, G_OPTION_ARG_NONE, &data->sanger, "Qualities in sanger format", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->fast = 0;
+  data->fast   = 0;
+  data->sanger = 0;
 
   context = g_option_context_new ("FILE - Letter-wise distribution of quality calls");
   g_option_context_add_group (context, get_fastq_option_group ());
@@ -121,6 +126,10 @@ parse_args (CallbackData      *data,
       exit (1);
     }
   data->input_path = (*argv)[1];
+
+  data->qual0 = FASTQ_QUAL_0;
+  if (data->sanger)
+    data->qual0 = FASTQ_QUAL_0_SANGER;
 
   init_letter_qual_data (data);
 }
@@ -163,7 +172,7 @@ iter_func (FastqSeq       *fastq,
         }
       if (table)
         {
-          const unsigned int idx = fastq->qual[i] - FASTQ_QUAL_0;
+          const unsigned int idx = fastq->qual[i] - data->qual0;
           if (idx >= N_QUAL)
             g_printerr ("[WARNING] Unknown quality character %c\n",
                         fastq->qual[i]);
@@ -187,7 +196,7 @@ iter_func_fast (FastqSeq       *fastq,
   for (i = 0; i < fastq->size; i++)
     {
       const unsigned int letter = fastq->seq[i];
-      const unsigned int qual   = fastq->qual[i] - FASTQ_QUAL_0;
+      const unsigned int qual   = fastq->qual[i] - data->qual0;
       data->quals[letter][qual]++;
     }
 
