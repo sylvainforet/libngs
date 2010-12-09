@@ -41,6 +41,8 @@ struct _CallbackData
   int         win;
   int         qwin;
   int         keep;
+  int         sanger;
+  int         qual0;
 
   int         use_stdout: 1;
 };
@@ -107,14 +109,15 @@ parse_args (CallbackData      *data,
 {
   GOptionEntry entries[] =
     {
-      {"out",   'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output file", NULL},
-      {"start", 's', 0, G_OPTION_ARG_INT,  &data->start, "Number of positions to trim at the start", NULL},
-      {"end",   'e', 0, G_OPTION_ARG_INT,  &data->end,   "Number of positions to trim at the end", NULL},
-      {"qual",  'q', 0, G_OPTION_ARG_INT,  &data->qual,  "Minimum quality", NULL},
-      {"len",   'l', 0, G_OPTION_ARG_INT,  &data->len,   "Minimum length", NULL},
-      {"win",   'w', 0, G_OPTION_ARG_INT,  &data->win,   "Size of the slidding window", NULL},
-      {"qwin",  'n', 0, G_OPTION_ARG_INT,  &data->qwin,  "Minimum sliding window mean quality", NULL},
-      {"keep",  'k', 0, G_OPTION_ARG_NONE, &data->keep,  "Keep an pseudo-entry for too small reads", NULL},
+      {"out",    'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output file", NULL},
+      {"start",  's', 0, G_OPTION_ARG_INT,  &data->start,  "Number of positions to trim at the start", NULL},
+      {"end",    'e', 0, G_OPTION_ARG_INT,  &data->end,    "Number of positions to trim at the end", NULL},
+      {"qual",   'q', 0, G_OPTION_ARG_INT,  &data->qual,   "Minimum quality", NULL},
+      {"len",    'l', 0, G_OPTION_ARG_INT,  &data->len,    "Minimum length", NULL},
+      {"win",    'w', 0, G_OPTION_ARG_INT,  &data->win,    "Size of the slidding window", NULL},
+      {"qwin",   'n', 0, G_OPTION_ARG_INT,  &data->qwin,   "Minimum sliding window mean quality", NULL},
+      {"keep",   'k', 0, G_OPTION_ARG_NONE, &data->keep,   "Keep an pseudo-entry for too small reads", NULL},
+      {"sanger", 'g', 0, G_OPTION_ARG_NONE, &data->sanger, "Qualities are in sanger format", NULL},
       {NULL}
     };
   GError         *error = NULL;
@@ -130,6 +133,8 @@ parse_args (CallbackData      *data,
   data->win            = 0;
   data->qwin           = 0;
   data->keep           = 0;
+  data->sanger         = 0;
+  data->qual0          = 0;
 
   context = g_option_context_new ("FILE - trims fastq reads");
   g_option_context_add_group (context, get_fastq_option_group ());
@@ -162,6 +167,10 @@ parse_args (CallbackData      *data,
       exit (1);
     }
   data->tot_trim = data->start + data->end;
+
+  data->qual0 = FASTQ_QUAL_0;
+  if (data->sanger)
+    data->qual0 = FASTQ_QUAL_0_SANGER;
 
   if (data->output_path[0] == '-' && data->output_path[1] == '\0')
     data->output_channel = g_io_channel_unix_new (STDOUT_FILENO);
@@ -202,7 +211,7 @@ iter_func (FastqSeq     *fastq,
       int tmp_idx = start;
       int i;
       for (i = start; i < end; i++)
-        if (fastq->qual[i] - FASTQ_QUAL_0 < data->qual)
+        if (fastq->qual[i] - data->qual0 < data->qual)
           {
             if (i - tmp_idx > max_len)
               {
@@ -235,13 +244,13 @@ iter_func (FastqSeq     *fastq,
       int i;
       /* Initialise window */
       for (i = start + data->win - 1; i >= start; i--)
-        win_qual += fastq->qual[i] - FASTQ_QUAL_0;
+        win_qual += fastq->qual[i] - data->qual0;
       for (i = start; i <= end - data->win; i++)
         {
           if (i > start)
             {
-              win_qual -= fastq->qual[i - 1] - FASTQ_QUAL_0;
-              win_qual += fastq->qual[i + data->win - 1] - FASTQ_QUAL_0;
+              win_qual -= fastq->qual[i - 1] - data->qual0;
+              win_qual += fastq->qual[i + data->win - 1] - data->qual0;
             }
           if ((win_qual / data->win) < data->qwin) /* Bad quality window */
             {
