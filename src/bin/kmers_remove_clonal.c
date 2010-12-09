@@ -51,6 +51,8 @@ struct _CallbackData
   unsigned int *start_coords;
   unsigned int *end_coords;
   int           n_coords;
+
+  int           verbose;
 };
 
 static void             parse_args      (CallbackData   *data,
@@ -110,8 +112,9 @@ parse_args (CallbackData   *data,
 {
   GOptionEntry entries[] =
     {
-      {"output",     'o', 0, G_OPTION_ARG_FILENAME,     &data->output_path, "Output path prefix", NULL},
-      {"coords",     'c', 0, G_OPTION_ARG_STRING_ARRAY, &data->coords_str,  "Coordinates for filtering (1-based, inclusive)", "START,END"},
+      {"output",  'o', 0, G_OPTION_ARG_FILENAME,     &data->output_path, "Output path prefix", NULL},
+      {"coords",  'c', 0, G_OPTION_ARG_STRING_ARRAY, &data->coords_str,  "Coordinates for filtering (1-based, inclusive)", "START,END"},
+      {"verbose", 'v', 0, G_OPTION_ARG_NONE,         &data->verbose,     "Verbose output", NULL},
       {NULL}
     };
   GError         *error = NULL;
@@ -123,6 +126,7 @@ parse_args (CallbackData   *data,
   data->coords_str     = NULL;
   data->start_coords   = NULL;
   data->end_coords     = NULL;
+  data->verbose        = 0;
 
   context = g_option_context_new ("FILE1 FILE2 - filters out clonal sequences from a pair fastq files");
   g_option_context_add_group (context, get_fastq_option_group ());
@@ -164,6 +168,9 @@ write_sequences (CallbackData   *data,
   GString          *buffer;
   GError           *error = NULL;
   int               use_stdout = 0;
+
+  if (data->verbose)
+    g_printerr ("Writing sequences\n");
 
   if (data->output_path[0] == '-' && data->output_path[1] == '\0')
     {
@@ -382,6 +389,9 @@ load_sequences  (CallbackData   *data)
   unsigned int   k;
   unsigned int   k_bytes;
 
+  if (data->verbose)
+    g_printerr ("Loading sequences (round 1)\n");
+
   start      = data->start_coords[0];
   end        = data->end_coords[0];
   k          = end - start + 1;
@@ -460,6 +470,9 @@ remove_clonal (CallbackData   *data,
   unsigned int      end;
   unsigned int      k;
   unsigned int      k_bytes;
+
+  if (data->verbose)
+    g_printerr ("Filtering clones (round %d)\n", round + 1);
 
   start     = data->start_coords[round];
   end       = data->end_coords[round];
