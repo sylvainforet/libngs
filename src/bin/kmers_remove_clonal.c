@@ -420,7 +420,7 @@ load_sequences  (CallbackData   *data)
       FastqPair    *pair;
 
       if (!check_sanity (data, seq1, seq2, start, end))
-        continue;
+        goto iter_next;
 
       /* Build kmer */
       char_to_bin_prealloc (kmer, seq1->seq + start - 1, k);
@@ -447,6 +447,7 @@ load_sequences  (CallbackData   *data)
               pair->seq2 = fastq_seq_copy (seq2);
             }
         }
+iter_next:
       seq1 = fastq_iter_next (iter1);
       seq2 = fastq_iter_next (iter2);
     }
@@ -494,6 +495,7 @@ remove_clonal (CallbackData   *data,
           fastq_seq_free (pair->seq1);
           fastq_seq_free (pair->seq2);
           g_slice_free (FastqPair, pair);
+          node->value = NULL;
           continue;
         }
 
