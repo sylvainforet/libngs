@@ -445,7 +445,7 @@ kmer_hash_table_resize (KmerHashTable *hash_table)
 #endif
 }
 
-static inline void
+static inline int
 kmer_hash_table_maybe_resize (KmerHashTable *hash_table)
 {
   glong noccupied = hash_table->noccupied;
@@ -453,7 +453,11 @@ kmer_hash_table_maybe_resize (KmerHashTable *hash_table)
 
   if ((size > hash_table->nnodes * 4 && size > 1 << HASH_TABLE_MIN_SHIFT) ||
       (size <= noccupied + (noccupied / 16)))
-    kmer_hash_table_resize (hash_table);
+    {
+      kmer_hash_table_resize (hash_table);
+      return 1;
+    }
+  return 0;
 }
 
 KmerHashTable*
@@ -600,7 +604,12 @@ kmer_hash_table_lookup_or_create (KmerHashTable       *hash_table,
         {
           /* We replaced an empty node, and not a tombstone */
           hash_table->noccupied++;
-          kmer_hash_table_maybe_resize (hash_table);
+          /* Addresses changed */
+          if (kmer_hash_table_maybe_resize (hash_table))
+            {
+              node_index = kmer_hash_table_lookup_node_for_insertion (hash_table, kmer, &key_hash);
+              node       = &hash_table->nodes[node_index];
+            }
         }
     }
   return node;

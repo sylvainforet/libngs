@@ -75,9 +75,9 @@ fastq_seq_copy (FastqSeq *fastq)
   if (fastq)
     {
       seq       = fastq_seq_new ();
-      seq->name = strdup (fastq->name);
-      seq->seq  = strdup (fastq->seq);
-      seq->qual = strdup (fastq->qual);
+      seq->name = g_strdup (fastq->name);
+      seq->seq  = g_strdup (fastq->seq);
+      seq->qual = g_strdup (fastq->qual);
       seq->size = fastq->size;
     }
 
