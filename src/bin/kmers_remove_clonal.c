@@ -158,130 +158,6 @@ parse_args (CallbackData   *data,
 }
 
 static void
-write_sequences (CallbackData   *data,
-                 KmerHashTable  *hash_table)
-{
-  KmerHashTableIter iter;
-  KmerHashNode     *node;
-  GIOChannel       *output_channel1;
-  GIOChannel       *output_channel2;
-  GString          *buffer;
-  GError           *error = NULL;
-  int               use_stdout = 0;
-
-  if (data->verbose)
-    g_printerr ("Writing sequences\n");
-
-  if (data->output_path[0] == '-' && data->output_path[1] == '\0')
-    {
-      use_stdout     = 1;
-      output_channel1 = g_io_channel_unix_new (STDOUT_FILENO);
-      output_channel2 = output_channel1;
-    }
-  else
-    {
-      output_channel1 = g_io_channel_new_file (data->output_path1,
-                                              "w", &error);
-      if (error)
-        {
-          g_printerr ("[ERROR] Opening sequence output file failed: %s\n",
-                      error->message);
-          exit (1);
-        }
-      output_channel2 = g_io_channel_new_file (data->output_path2,
-                                              "w", &error);
-      if (error)
-        {
-          g_printerr ("[ERROR] Opening sequence output file failed: %s\n",
-                      error->message);
-          exit (1);
-        }
-      g_io_channel_set_encoding (output_channel2, NULL, NULL);
-      g_io_channel_set_buffered (output_channel2, TRUE);
-      g_io_channel_set_buffer_size (output_channel2, 4096 * 128);
-    }
-  g_io_channel_set_encoding (output_channel1, NULL, NULL);
-  g_io_channel_set_buffered (output_channel1, TRUE);
-  g_io_channel_set_buffer_size (output_channel1, 4096 * 128);
-
-  buffer = g_string_sized_new (1024);
-  kmer_hash_table_iter_init (&iter, hash_table);
-  while ((node = kmer_hash_table_iter_next (&iter)) != NULL)
-    {
-      FastqPair *pair;
-
-      pair = (FastqPair*) node->value;
-      write_fastq (pair->seq1, buffer, output_channel1);
-      write_fastq (pair->seq2, buffer, output_channel2);
-      fastq_seq_free (pair->seq1);
-      fastq_seq_free (pair->seq2);
-      g_slice_free (FastqPair, pair);
-    }
-
-  /* Cleanup */
-  g_string_free (buffer, TRUE);
-  if (!use_stdout)
-    {
-      g_io_channel_shutdown (output_channel1, TRUE, &error);
-      if (error)
-        {
-          g_printerr ("[ERROR] Closing output file failed: %s\n", error->message);
-          g_error_free (error);
-          error = NULL;
-        }
-      g_io_channel_shutdown (output_channel2, TRUE, &error);
-      if (error)
-        {
-          g_printerr ("[ERROR] Closing output file failed: %s\n", error->message);
-          g_error_free (error);
-          error = NULL;
-        }
-      g_io_channel_unref (output_channel2);
-      g_free (data->output_path1);
-      g_free (data->output_path2);
-    }
-  g_io_channel_unref (output_channel1);
-  g_free (data->output_path);
-  g_free (data->start_coords);
-  g_free (data->end_coords);
-}
-
-static void
-write_fastq (FastqSeq   *fastq,
-             GString    *buffer,
-             GIOChannel *channel)
-{
-  GError  *error = NULL;
-
-  g_string_truncate (buffer, 0);
-
-  /* Sequence */
-  buffer = g_string_append_c (buffer, '@');
-  buffer = g_string_append (buffer, fastq->name);
-  buffer = g_string_append_c (buffer, '\n');
-  buffer = g_string_append (buffer, fastq->seq);
-  buffer = g_string_append_c (buffer, '\n');
-
-  /* Quality */
-  buffer = g_string_append_c (buffer, '+');
-  buffer = g_string_append (buffer, fastq->name);
-  buffer = g_string_append_c (buffer, '\n');
-  buffer = g_string_append (buffer, fastq->qual);
-  buffer = g_string_append_c (buffer, '\n');
-
-  g_io_channel_write_chars (channel,
-                            buffer->str,
-                            -1,
-                            NULL,
-                            &error);
-  if (error)
-    {
-      g_printerr ("[ERROR] Writing sequence failed: %s\n", error->message);
-      exit (1);
-    }
-}
-
-static void
 parse_coords (CallbackData *data)
 {
   int i;
@@ -428,17 +304,17 @@ load_sequences  (CallbackData   *data)
       node = kmer_hash_table_lookup_or_create (hash_table, kmer);
 
       /* Insert new pair of fastq sequences */
-      if (node->value == NULL)
+      if (node->value.ptr == NULL)
         {
-          pair        = g_slice_new (FastqPair);
-          pair->seq1  = fastq_seq_copy (seq1);
-          pair->seq2  = fastq_seq_copy (seq2);
-          node->value = pair;
+          pair            = g_slice_new (FastqPair);
+          pair->seq1      = fastq_seq_copy (seq1);
+          pair->seq2      = fastq_seq_copy (seq2);
+          node->value.ptr = pair;
         }
       /* Compare and replace */
       else
         {
-          pair = (FastqPair*) node->value;
+          pair = (FastqPair*) node->value.ptr;
           if (fastq_pair_cmp (data, seq1, seq2, pair->seq1, pair->seq2) > 0)
             {
               fastq_seq_free (pair->seq1);
@@ -488,14 +364,14 @@ remove_clonal (CallbackData   *data,
       KmerHashNode *new_node;
       FastqPair    *pair;
 
-      pair = (FastqPair*) node->value;
+      pair = (FastqPair*) node->value.ptr;
 
       if (!check_sanity (data, pair->seq1, pair->seq2, start, end))
         {
           fastq_seq_free (pair->seq1);
           fastq_seq_free (pair->seq2);
           g_slice_free (FastqPair, pair);
-          node->value = NULL;
+          node->value.ptr = NULL;
           continue;
         }
 
@@ -505,14 +381,14 @@ remove_clonal (CallbackData   *data,
       new_node = kmer_hash_table_lookup_or_create (new_table, kmer);
 
       /* Insert new pair of fastq sequences */
-      if (new_node->value == NULL)
-        new_node->value = pair;
+      if (new_node->value.ptr == NULL)
+        new_node->value.ptr = pair;
       /* Compare and replace */
       else
         {
           FastqPair *new_pair;
 
-          new_pair = (FastqPair*) new_node->value;
+          new_pair = (FastqPair*) new_node->value.ptr;
           if (fastq_pair_cmp (data, pair->seq1, pair->seq2, new_pair->seq1, new_pair->seq2) > 0)
             {
               fastq_seq_free (new_pair->seq1);
@@ -527,7 +403,7 @@ remove_clonal (CallbackData   *data,
             }
           g_slice_free (FastqPair, pair);
         }
-      node->value = NULL;
+      node->value.ptr = NULL;
     }
 
   kmer_hash_table_destroy (hash_table);
@@ -564,6 +440,135 @@ fastq_pair_cmp (CallbackData *data,
   if (mean1 > mean2)
     return 1;
   return -1;
+}
+
+static void
+write_sequences (CallbackData   *data,
+                 KmerHashTable  *hash_table)
+{
+  KmerHashTableIter iter;
+  KmerHashNode     *node;
+  GIOChannel       *output_channel1;
+  GIOChannel       *output_channel2;
+  GString          *buffer;
+  GError           *error      = NULL;
+  int               use_stdout = 0;
+  gulong            written    = 0;
+
+  if (data->verbose)
+    g_printerr ("Writing sequences\n");
+
+  if (data->output_path[0] == '-' && data->output_path[1] == '\0')
+    {
+      use_stdout     = 1;
+      output_channel1 = g_io_channel_unix_new (STDOUT_FILENO);
+      output_channel2 = output_channel1;
+    }
+  else
+    {
+      output_channel1 = g_io_channel_new_file (data->output_path1,
+                                              "w", &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] Opening sequence output file failed: %s\n",
+                      error->message);
+          exit (1);
+        }
+      output_channel2 = g_io_channel_new_file (data->output_path2,
+                                              "w", &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] Opening sequence output file failed: %s\n",
+                      error->message);
+          exit (1);
+        }
+      g_io_channel_set_encoding (output_channel2, NULL, NULL);
+      g_io_channel_set_buffered (output_channel2, TRUE);
+      g_io_channel_set_buffer_size (output_channel2, 4096 * 128);
+    }
+  g_io_channel_set_encoding (output_channel1, NULL, NULL);
+  g_io_channel_set_buffered (output_channel1, TRUE);
+  g_io_channel_set_buffer_size (output_channel1, 4096 * 128);
+
+  buffer = g_string_sized_new (1024);
+  kmer_hash_table_iter_init (&iter, hash_table);
+  while ((node = kmer_hash_table_iter_next (&iter)) != NULL)
+    {
+      FastqPair *pair;
+
+      pair = (FastqPair*) node->value.ptr;
+      write_fastq (pair->seq1, buffer, output_channel1);
+      write_fastq (pair->seq2, buffer, output_channel2);
+      fastq_seq_free (pair->seq1);
+      fastq_seq_free (pair->seq2);
+      g_slice_free (FastqPair, pair);
+      ++written;
+    }
+
+  /* Cleanup */
+  g_string_free (buffer, TRUE);
+  if (!use_stdout)
+    {
+      g_io_channel_shutdown (output_channel1, TRUE, &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] Closing output file failed: %s\n", error->message);
+          g_error_free (error);
+          error = NULL;
+        }
+      g_io_channel_shutdown (output_channel2, TRUE, &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] Closing output file failed: %s\n", error->message);
+          g_error_free (error);
+          error = NULL;
+        }
+      g_io_channel_unref (output_channel2);
+      g_free (data->output_path1);
+      g_free (data->output_path2);
+    }
+  g_io_channel_unref (output_channel1);
+  g_free (data->output_path);
+  g_free (data->start_coords);
+  g_free (data->end_coords);
+
+  if (data->verbose)
+    g_printerr ("Wrote %lu sequences\n", written);
+}
+
+static void
+write_fastq (FastqSeq   *fastq,
+             GString    *buffer,
+             GIOChannel *channel)
+{
+  GError  *error = NULL;
+
+  g_string_truncate (buffer, 0);
+
+  /* Sequence */
+  buffer = g_string_append_c (buffer, '@');
+  buffer = g_string_append (buffer, fastq->name);
+  buffer = g_string_append_c (buffer, '\n');
+  buffer = g_string_append (buffer, fastq->seq);
+  buffer = g_string_append_c (buffer, '\n');
+
+  /* Quality */
+  buffer = g_string_append_c (buffer, '+');
+  buffer = g_string_append (buffer, fastq->name);
+  buffer = g_string_append_c (buffer, '\n');
+  buffer = g_string_append (buffer, fastq->qual);
+  buffer = g_string_append_c (buffer, '\n');
+
+  g_io_channel_write_chars (channel,
+                            buffer->str,
+                            -1,
+                            NULL,
+                            &error);
+  if (error)
+    {
+      g_printerr ("[ERROR] Writing sequence failed: %s\n", error->message);
+      exit (1);
+    }
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:

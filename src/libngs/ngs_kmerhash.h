@@ -25,21 +25,27 @@ union _KmerHashKmer
   unsigned char  kmer_val[KMER_VAL_BYTES];
 };
 
+typedef union _KmerHashValue KmerHashValue;
+
+union _KmerHashValue
+{
+  gulong count;
+  void  *ptr;
+};
+
 typedef struct _KmerHashNode KmerHashNode;
 
 struct _KmerHashNode
 {
-  KmerHashKmer kmer;
+  KmerHashKmer  kmer;
 
   /* If key_hash == 0, node is not in use
    * If key_hash == 1, node is a tombstone
-   * If key_hash >= 2, node contains data */
-  gulong  key_hash;
-  union
-    {
-      gulong  count;
-      void   *value;
-    };
+   * If key_hash >= 2, node contains data
+   */
+  gulong        key_hash;
+
+  KmerHashValue value;
 };
 
 typedef gulong (*KmerHashFunc)  (const unsigned char *kmer,

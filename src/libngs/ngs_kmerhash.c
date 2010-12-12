@@ -116,7 +116,7 @@ kmer_hash_generic (const unsigned char *kmer,
     }
   while (++i < size);
 
-  return ((glong)(hash * 2654435769U));;
+  return ((glong)(hash * 2654435769U));
 }
 
 int
@@ -336,7 +336,6 @@ kmer_hash_table_lookup_node_for_insertion (KmerHashTable       *hash_table,
 static void
 kmer_hash_table_resize (KmerHashTable *hash_table)
 {
-  /*
   KmerHashNode *new_nodes;
   glong old_size;
   glong i;
@@ -366,16 +365,17 @@ kmer_hash_table_resize (KmerHashTable *hash_table)
           hash_val &= hash_table->mask;
           new_node  = &new_nodes[hash_val];
         }
-
-      *new_node = *node;
+      new_nodes->kmer     = node->kmer;
+      new_nodes->key_hash = node->key_hash;
+      new_nodes->value    = node->value;
     }
 
   g_free (hash_table->nodes);
   hash_table->nodes = new_nodes;
   hash_table->noccupied = hash_table->nnodes;
-  */
 
-  /* TODO check how to tombstones are handled */
+#if 0
+/* TODO check how to tombstones are handled */
 
 #define IS_TOUCHED(i) ((touched[(i) / 8] >> ((i) & 7)) & 1)
 #define SET_TOUCHED(i) (touched[(i) / 8] |= (1 << ((i) & 7)))
@@ -442,6 +442,7 @@ kmer_hash_table_resize (KmerHashTable *hash_table)
   g_free (touched);
 #undef IS_TOUCHED
 #undef SET_TOUCHED
+#endif
 }
 
 static inline void
@@ -559,12 +560,12 @@ kmer_hash_table_add_count (KmerHashTable       *hash_table,
   old_hash   = node->key_hash;
 
   if (old_hash > 1)
-    node->count += count;
+    node->value.count += count;
   else
     {
       kmer_hash_table_copy_kmer (hash_table, kmer, &node->kmer);
-      node->count    = count;
-      node->key_hash = key_hash;
+      node->value.count = count;
+      node->key_hash    = key_hash;
       hash_table->nnodes++;
       if (old_hash == 0)
         {
@@ -591,9 +592,9 @@ kmer_hash_table_lookup_or_create (KmerHashTable       *hash_table,
   if (old_hash <= 1)
     {
       kmer_hash_table_copy_kmer (hash_table, kmer, &node->kmer);
-      node->key_hash = key_hash;
-      node->count    = 0;
-      node->value    = NULL;
+      node->key_hash    = key_hash;
+      node->value.count = 0;
+      node->value.ptr   = NULL;
       hash_table->nnodes++;
       if (old_hash == 0)
         {
@@ -670,7 +671,7 @@ kmer_hash_table_print (KmerHashTable       *hash_table,
               else
                 buffer[j] = hnode->kmer.kmer_ptr[j];
             }
-          *((unsigned long int*)(buffer + j)) = GULONG_TO_BE (hnode->count);
+          *((unsigned long int*)(buffer + j)) = GULONG_TO_BE (hnode->value.count);
           g_io_channel_write_chars (channel,
                                     (char*)buffer, bin_write_size,
                                     NULL, &tmp_error);
@@ -681,7 +682,7 @@ kmer_hash_table_print (KmerHashTable       *hash_table,
           unsigned long int n;
 
           j             = 1;
-          n             = hnode->count;
+          n             = hnode->value.count;
           uitoa_no0 (n, buffer, hash_table->k + DIGITS_BUFF_SPACE - 1, buffer_ptr, j);
           *--buffer_ptr = ' ';
           j            += 1 + hash_table->k;
