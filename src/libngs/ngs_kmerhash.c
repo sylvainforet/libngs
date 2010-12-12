@@ -365,9 +365,9 @@ kmer_hash_table_resize (KmerHashTable *hash_table)
           hash_val &= hash_table->mask;
           new_node  = &new_nodes[hash_val];
         }
-      new_nodes->kmer     = node->kmer;
-      new_nodes->key_hash = node->key_hash;
-      new_nodes->value    = node->value;
+      new_node->kmer     = node->kmer;
+      new_node->key_hash = node->key_hash;
+      new_node->value    = node->value;
     }
 
   g_free (hash_table->nodes);
