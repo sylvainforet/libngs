@@ -222,10 +222,10 @@ parse_args (CallbackData   *data,
           g_printerr ("[ERROR] Opening single reads output file failed: %s\n", error->message);
           exit (1);
         }
+      g_io_channel_set_encoding (data->single_channel, NULL, NULL);
+      g_io_channel_set_buffered (data->single_channel, TRUE);
+      g_io_channel_set_buffer_size (data->single_channel, 4096 * 128);
     }
-  g_io_channel_set_encoding (data->single_channel, NULL, NULL);
-  g_io_channel_set_buffered (data->single_channel, TRUE);
-  g_io_channel_set_buffer_size (data->single_channel, 4096 * 128);
 }
 
 static void
