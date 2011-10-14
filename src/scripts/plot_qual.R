@@ -78,7 +78,52 @@ plot_read_quals <- function(path)
            sprintf("mean=%.2f, sd=%.2f", mu, si))
 }
 
-plot_quality_length <- function(path)
+plot_quality_length_heatmap <- function(path)
+{
+
+    medianOfCol <- function(x, qntl)
+    {
+        cs <- cumsum(x)
+        for (i in 1:length(x))
+        {
+            if (cs[i] >= qntl)
+            {
+                return(i)
+            }
+        }
+        return(0)
+    }
+
+    d <- read.table(path, header=FALSE)
+    m <- as.matrix(d)
+
+    # Remove last columns where highest qualities are not present in the
+    # datasset
+    for (i in ncol(m):1)
+    {
+        if (sum(m[, i]) != 0)
+        {
+            break()
+        }
+    }
+    m <- m[, 1:i]
+
+    image(1:nrow(m), 1:ncol(m), 1 - m,
+          xlab="Position",
+          ylab="Quality",
+          col=heat.colors(1000))
+
+    mu <- m %*% 1:ncol(m)
+    lines(mu)
+    m50 <- apply(m, 1, medianOfCol, 0.50)
+    lines(m50, lty=2)
+    m25 <- apply(m, 1, medianOfCol, 0.25)
+    lines(m25, lty=3, col='grey')
+    m75 <- apply(m, 1, medianOfCol, 0.75)
+    lines(m75, lty=3, col='grey')
+}
+
+plot_quality_length_persp <- function(path)
 {
     f <- read.table(path, header=FALSE)
     m <- as.matrix(f)
@@ -94,6 +139,13 @@ plot_quality_length <- function(path)
           expand=0.5,
           theta=30,
           phi=30)
+}
+
+plot_letter_pos <- function(path)
+{
+    d <- read.table(path, header=TRUE)
+    m <- as.matrix(d)
+    barplot(t(m))
 }
 
 # vim:ft=r:expandtab:ts=4:sw=4:
