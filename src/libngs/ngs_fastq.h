@@ -22,7 +22,7 @@ struct _FastqSeq
 };
 
 #define FASTQ_QUAL_0        64 /* '@' */
-#define FASTQ_QUAL_0_SANGER 37 /* '%' */
+#define FASTQ_QUAL_0_SANGER 33 /* '!' */
 
 extern char *fastq_qual_char_2_string[];
 extern char *fastq_qual_char_2_string_sanger[];
