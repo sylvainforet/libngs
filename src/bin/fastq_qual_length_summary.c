@@ -27,7 +27,7 @@
 #include "ngs_fastq.h"
 
 
-#define N_QUAL 40
+#define N_QUAL 60
 
 typedef struct _CallbackData CallbackData;
 
