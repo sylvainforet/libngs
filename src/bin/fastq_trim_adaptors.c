@@ -32,6 +32,7 @@
 
 
 #define SEED_SIZE 12
+#define NB_SEEDS  (1 << (SEED_SIZE * BITS_PER_NUC))
 
 
 typedef struct _Adaptor Adaptor;
@@ -71,7 +72,7 @@ struct _CallbackData
   GIOChannel *out_channel;
   GString    *buffer;
 
-  Seed       *seeds[1 << (SEED_SIZE * BITS_PER_NUC)];
+  Seed      **seeds;
 
   long        reads_found;
 
@@ -552,8 +553,7 @@ init_seeds (CallbackData *data)
   if (data->verbose)
     g_printerr ("Initialiasing seeds\n");
 
-  for (i = (1 << (SEED_SIZE * BITS_PER_NUC)) - 1; i >= 0; --i)
-    data->seeds[i] = NULL;
+  data->seeds = g_malloc0 (NB_SEEDS * sizeof (*data->seeds));
 
   for (i = 0; i < data->n_adaptors; i++)
     {
@@ -710,7 +710,7 @@ cleanup_data (CallbackData *data)
       g_io_channel_unref (data->out_channel);
     }
 
-  if (data->adaptors)
+  if (data->adaptors != NULL)
     {
       for (i = 0; i < data->n_adaptors; i++)
         {
@@ -720,26 +720,31 @@ cleanup_data (CallbackData *data)
         }
 
       g_free (data->adaptors);
-      data->adaptors = NULL;
+      data->adaptors   = NULL;
       data->n_adaptors = 0;
     }
 
-  for (i = (1 << (SEED_SIZE * BITS_PER_NUC)) - 1; i >= 0; --i)
+  if (data->seeds != NULL)
     {
-      if (data->seeds[i] != NULL)
+      for (i = NB_SEEDS - 1; i >= 0; --i)
         {
-          Seed *tmp;
-
-          for (tmp = data->seeds[i]; tmp != NULL; )
+          if (data->seeds[i] != NULL)
             {
-              tmp = data->seeds[i]->next;
-              g_slice_free (Seed, data->seeds[i]);
-              data->seeds[i] = tmp;
+              Seed *tmp;
+
+              for (tmp = data->seeds[i]; tmp != NULL; )
+                {
+                  tmp = data->seeds[i]->next;
+                  g_slice_free (Seed, data->seeds[i]);
+                  data->seeds[i] = tmp;
+                }
             }
         }
+      g_free (data->seeds);
+      data->seeds = NULL;
     }
 
-  if (data->buffer)
+  if (data->buffer != NULL)
     {
       g_string_free (data->buffer, TRUE);
       data->buffer = NULL;
