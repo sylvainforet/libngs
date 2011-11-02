@@ -49,10 +49,6 @@ static void parse_args  (CallbackData   *data,
                          int            *argc,
                          char         ***argv);
 
-static void write_fastq (FastqSeq       *fastq,
-                         GString        *buffer,
-                         GIOChannel     *channel);
-
 int
 main (int    argc,
       char **argv)
@@ -70,13 +66,15 @@ main (int    argc,
   iter1 = fastq_iter_new (data.input_path1, &error);
   if (error)
     {
-      g_printerr ("[ERROR] Opening %s failed: %s\n", data.input_path1, error->message);
+      g_printerr ("[ERROR] Opening %s failed: %s\n",
+                  data.input_path1, error->message);
       exit (1);
     }
   iter2 = fastq_iter_new (data.input_path2, &error);
   if (error)
     {
-      g_printerr ("[ERROR] Opening %s failed: %s\n", data.input_path2, error->message);
+      g_printerr ("[ERROR] Opening %s failed: %s\n",
+                  data.input_path2, error->message);
       exit (1);
     }
 
@@ -90,24 +88,76 @@ main (int    argc,
         {
           if (seq1->size >= data.min_size && seq2->size >= data.min_size)
             {
-              write_fastq (seq1, buffer, data.output_channel);
-              write_fastq (seq2, buffer, data.output_channel);
+              fastq_write (data.output_channel,
+                           buffer,
+                           seq1->name,
+                           seq1->seq,
+                           seq1->qual,
+                           &error);
+              if (error != NULL)
+                break;
+              fastq_write (data.output_channel,
+                           buffer,
+                           seq2->name,
+                           seq2->seq,
+                           seq2->qual,
+                           &error);
+              if (error != NULL)
+                break;
             }
           else
             {
               if (seq1->size >= data.min_size && data.single_channel)
-                write_fastq (seq1, buffer, data.single_channel);
+                {
+                  fastq_write (data.single_channel,
+                               buffer,
+                               seq1->name,
+                               seq1->seq,
+                               seq1->qual,
+                               &error);
+                  if (error != NULL)
+                    break;
+                }
               if (seq2->size >= data.min_size && data.single_channel)
-                write_fastq (seq2, buffer, data.single_channel);
+                {
+                  fastq_write (data.single_channel,
+                               buffer,
+                               seq2->name,
+                               seq2->seq,
+                               seq2->qual,
+                               &error);
+                  if (error != NULL)
+                    break;
+                }
             }
         }
       else
         {
-          write_fastq (seq1, buffer, data.output_channel);
-          write_fastq (seq2, buffer, data.output_channel);
+          fastq_write (data.output_channel,
+                       buffer,
+                       seq1->name,
+                       seq1->seq,
+                       seq1->qual,
+                       &error);
+          if (error != NULL)
+            break;
+          fastq_write (data.output_channel,
+                       buffer,
+                       seq2->name,
+                       seq2->seq,
+                       seq2->qual,
+                       &error);
+          if (error != NULL)
+            break;
         }
       seq1 = fastq_iter_next (iter1);
       seq2 = fastq_iter_next (iter2);
+    }
+  if (error != NULL)
+    {
+      g_printerr ("[ERROR] Writing sequence failed: %s\n", error->message);
+      g_error_free (error);
+      error = NULL;
     }
   fastq_iter_free (iter1);
   fastq_iter_free (iter2);
@@ -118,7 +168,7 @@ main (int    argc,
       if (!data.use_stdout)
         {
           g_io_channel_shutdown (data.output_channel, TRUE, &error);
-          if (error)
+          if (error != NULL)
             {
               g_printerr ("[ERROR] Closing output file failed: %s\n", error->message);
               g_error_free (error);
@@ -132,7 +182,7 @@ main (int    argc,
   if (data.single_channel)
     {
       g_io_channel_shutdown (data.single_channel, TRUE, &error);
-      if (error)
+      if (error != NULL)
         {
           g_printerr ("[ERROR] Closing single reads output file failed: %s\n", error->message);
           g_error_free (error);
@@ -225,41 +275,6 @@ parse_args (CallbackData   *data,
       g_io_channel_set_encoding (data->single_channel, NULL, NULL);
       g_io_channel_set_buffered (data->single_channel, TRUE);
       g_io_channel_set_buffer_size (data->single_channel, 4096 * 128);
-    }
-}
-
-static void
-write_fastq (FastqSeq   *fastq,
-             GString    *buffer,
-             GIOChannel *channel)
-{
-  GError  *error = NULL;
-
-  g_string_truncate (buffer, 0);
-
-  /* Sequence */
-  buffer = g_string_append_c (buffer, '@');
-  buffer = g_string_append (buffer, fastq->name);
-  buffer = g_string_append_c (buffer, '\n');
-  buffer = g_string_append (buffer, fastq->seq);
-  buffer = g_string_append_c (buffer, '\n');
-
-  /* Quality */
-  buffer = g_string_append_c (buffer, '+');
-  buffer = g_string_append (buffer, fastq->name);
-  buffer = g_string_append_c (buffer, '\n');
-  buffer = g_string_append (buffer, fastq->qual);
-  buffer = g_string_append_c (buffer, '\n');
-
-  g_io_channel_write_chars (channel,
-                            buffer->str,
-                            -1,
-                            NULL,
-                            &error);
-  if (error)
-    {
-      g_printerr ("[ERROR] Writing sequence failed: %s\n", error->message);
-      exit (1);
     }
 }
 

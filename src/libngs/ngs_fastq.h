@@ -58,6 +58,26 @@ void iter_fastq (const char   *path,
 
 GOptionGroup* get_fastq_option_group (void);
 
+/**
+ * Output function
+ * Buffer can be NULL and a new buffer will be created and freed at each call
+ */
+
+void  fastq_write          (GIOChannel        *channel,
+                            GString           *buffer,
+                            char              *name,
+                            char              *seq,
+                            char              *qual,
+                            GError           **error);
+
+void  fastq_write_fragment (GIOChannel        *channel,
+                            GString           *buffer,
+                            char              *name,
+                            char              *seq,
+                            char              *qual,
+                            int                start,
+                            int                end,
+                            GError           **error);
 
 /*************/
 /* FastqIter */

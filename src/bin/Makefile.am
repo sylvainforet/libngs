@@ -23,6 +23,7 @@ bin_PROGRAMS = \
 	fastq_sample \
 	fastq_split \
 	fastq_trim \
+	fastq_trim_adaptors \
 	bsq2gff \
 	bsq_coverage_distribution \
 	bsq_empty_regions_content \
@@ -95,6 +96,11 @@ fastq_trim_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 fastq_trim_SOURCES = \
 	fastq_trim.c
+
+fastq_trim_adaptors_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+fastq_trim_adaptors_SOURCES = \
+	fastq_trim_adaptors.c
 
 bsq2gff_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la

@@ -33,6 +33,8 @@ struct _CallbackData
   char       *output_path;
   GIOChannel *output_channel;
 
+  char       *qual0_str;
+
   int         start;
   int         end;
   int         tot_trim;
@@ -53,13 +55,6 @@ static void parse_args  (CallbackData      *data,
 
 static int  iter_func   (FastqSeq          *fastq,
                          CallbackData      *data);
-
-static int  write_fastq (GIOChannel        *channel,
-                         char              *name,
-                         char              *seq,
-                         char              *qual,
-                         int                start,
-                         int                end);
 
 int
 main (int    argc,
@@ -167,9 +162,14 @@ parse_args (CallbackData      *data,
     }
   data->tot_trim = data->start + data->end;
 
-  data->qual0 = FASTQ_QUAL_0;
+  data->qual0        = FASTQ_QUAL_0;
+  data->qual0_str    = " ";
+  data->qual0_str[0] = FASTQ_QUAL_0 + 2; /* 0 is actually not used */
   if (data->sanger)
-    data->qual0 = FASTQ_QUAL_0_SANGER;
+    {
+      data->qual0        = FASTQ_QUAL_0_SANGER;
+      data->qual0_str[0] = FASTQ_QUAL_0_SANGER + 2; /* 0 is actually not used */
+    }
 
   if (data->output_path[0] == '-' && data->output_path[1] == '\0')
     data->output_channel = g_io_channel_unix_new (STDOUT_FILENO);
@@ -189,8 +189,9 @@ static int
 iter_func (FastqSeq     *fastq,
            CallbackData *data)
 {
-  int start;
-  int end;
+  GError *error = NULL;
+  int     start;
+  int     end;
 
   if (data->tot_trim > fastq->size)
     {
@@ -200,9 +201,11 @@ iter_func (FastqSeq     *fastq,
       exit (1);
     }
 
-  end     = fastq->size - data->end;
-  start   = data->start;
+  end   = fastq->size - data->end;
+  start = data->start;
+
   /* Low quality bases */
+  /* TODO remove Ns !!! This is quite important */
   if (data->qual > 0)
     {
       int max_idx = start;
@@ -241,6 +244,7 @@ iter_func (FastqSeq     *fastq,
       int good_win = 0;
       int max_idx  = start;
       int i;
+
       /* Initialise window */
       for (i = start + data->win - 1; i >= start; i--)
         win_qual += fastq->qual[i] - data->qual0;
@@ -287,59 +291,36 @@ iter_func (FastqSeq     *fastq,
   if (end <= start || end - start < data->len)
     {
       if (data->keep)
-        return write_fastq (data->output_channel,
-                            fastq->name,
-                            "N", "2",  0, 1);
-      return 1;
+        {
+          fastq_write (data->output_channel,
+                       NULL,
+                       fastq->name,
+                       "N",
+                       data->qual0_str,
+                       &error);
+          if (error != NULL)
+            goto error;
+        }
     }
-  return write_fastq (data->output_channel,
-                      fastq->name,
-                      fastq->seq,
-                      fastq->qual,
-                      start,
-                      end);
-}
-
-static int
-write_fastq (GIOChannel *channel,
-             char       *name,
-             char       *seq,
-             char       *qual,
-             int         start,
-             int         end)
-{
-  GError  *error = NULL;
-  GString *buffer;
-  int      ret = 1;
-
-  buffer = g_string_sized_new (512);
-
-  g_string_append_printf (buffer, "@%s\n", name);
-
-  buffer = g_string_append_len (buffer, seq + start, end - start);
-  buffer = g_string_append_c (buffer, '\n');
-
-  g_string_append_printf (buffer, "+%s\n", name);
-
-  buffer = g_string_append_len (buffer, qual + start, end - start);
-  buffer = g_string_append_c (buffer, '\n');
-
-  g_io_channel_write_chars (channel,
-                            buffer->str,
-                            -1,
-                            NULL,
-                            &error);
-  if (error)
+  else
     {
-      g_printerr ("[ERROR] Writing trimmed sequence failed: %s\n",
-                  error->message);
-      g_error_free (error);
-      error = NULL;
-      ret   = 0;
+      fastq_write_fragment (data->output_channel,
+                            NULL,
+                            fastq->name,
+                            fastq->seq,
+                            fastq->qual,
+                            start, end,
+                            &error);
+      if (error != NULL)
+        goto error;
     }
-  g_string_free (buffer, TRUE);
+  return 1;
 
-  return ret;
+error:
+  g_printerr ("[ERROR] Writing trimmed sequence failed: %s\n",
+              error->message);
+  g_error_free (error);
+  return 0;
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:

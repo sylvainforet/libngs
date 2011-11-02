@@ -62,9 +62,9 @@ char* fasta_write_to_buffer (FastaSeq     *seq,
 
 GOptionGroup* get_fasta_option_group (void);
 
-/************/
-/* FataIter */
-/************/
+/*************/
+/* FastaIter */
+/*************/
 
 typedef struct _FastaIter FastaIter;
 

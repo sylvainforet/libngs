@@ -417,5 +417,86 @@ fastq_iter_free (FastqIter *iter)
     }
 }
 
+void
+fastq_write (GIOChannel *channel,
+             GString    *buffer,
+             char       *name,
+             char       *seq,
+             char       *qual,
+             GError    **error)
+{
+  GError  *tmp_err     = NULL;
+  int      free_buffer = 0;
+
+  if (buffer == NULL)
+    {
+      buffer = g_string_sized_new (512);
+      free_buffer = 1;
+    }
+  else
+    g_string_truncate (buffer, 0);
+
+  buffer = g_string_append_c (buffer, '@');
+  buffer = g_string_append (buffer, name);
+  buffer = g_string_append_c (buffer, '\n');
+  buffer = g_string_append (buffer, seq);
+  buffer = g_string_append (buffer, "\n+\n");
+  buffer = g_string_append (buffer, qual);
+  buffer = g_string_append_c (buffer, '\n');
+
+  g_io_channel_write_chars (channel,
+                            buffer->str,
+                            -1,
+                            NULL,
+                            &tmp_err);
+  if (tmp_err != NULL)
+    g_propagate_error (error, tmp_err);
+
+  if (free_buffer)
+    g_string_free (buffer, TRUE);
+}
+
+void
+fastq_write_fragment (GIOChannel *channel,
+                      GString    *buffer,
+                      char       *name,
+                      char       *seq,
+                      char       *qual,
+                      int         start,
+                      int         end,
+                      GError    **error)
+{
+  GError  *tmp_err     = NULL;
+  int      free_buffer = 0;
+
+  if (buffer == NULL)
+    {
+      buffer = g_string_sized_new (512);
+      free_buffer = 1;
+    }
+  else
+    g_string_truncate (buffer, 0);
+
+  buffer = g_string_append_c (buffer, '@');
+  buffer = g_string_append (buffer, name);
+  buffer = g_string_append_c (buffer, '\n');
+  buffer = g_string_append_len (buffer, seq + start, end - start);
+  buffer = g_string_append (buffer, "\n+\n");
+  buffer = g_string_append_len (buffer, qual + start, end - start);
+  buffer = g_string_append_c (buffer, '\n');
+
+  g_io_channel_write_chars (channel,
+                            buffer->str,
+                            -1,
+                            NULL,
+                            &tmp_err);
+  if (tmp_err != NULL)
+    g_propagate_error (error, tmp_err);
+
+  if (free_buffer)
+    g_string_free (buffer, TRUE);
+}
+
+
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */

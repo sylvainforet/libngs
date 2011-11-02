@@ -82,10 +82,6 @@ static int              fastq_pair_cmp  (CallbackData   *data,
 static void             write_sequences (CallbackData   *data,
                                          KmerHashTable  *hash_table);
 
-static void             write_fastq     (FastqSeq       *fastq,
-                                         GString        *buffer,
-                                         GIOChannel     *channel);
-
 int
 main (int    argc,
       char **argv)
@@ -497,12 +493,33 @@ write_sequences (CallbackData   *data,
       FastqPair *pair;
 
       pair = (FastqPair*) node->value.ptr;
-      write_fastq (pair->seq1, buffer, output_channel1);
-      write_fastq (pair->seq2, buffer, output_channel2);
+      fastq_write (output_channel1,
+                   buffer,
+                   pair->seq1->name,
+                   pair->seq1->seq,
+                   pair->seq1->qual,
+                   &error);
+      if (error != NULL)
+        goto error;
+      fastq_write (output_channel2,
+                   buffer,
+                   pair->seq2->name,
+                   pair->seq2->seq,
+                   pair->seq2->qual,
+                   &error);
       fastq_seq_free (pair->seq1);
       fastq_seq_free (pair->seq2);
       g_slice_free (FastqPair, pair);
+error:
+      if (error != NULL)
+        break;
       ++written;
+    }
+  if (error != NULL)
+    {
+      g_printerr ("[ERROR] Writing sequences failed: %s\n", error->message);
+      g_error_free (error);
+      error = NULL;
     }
 
   /* Cleanup */
@@ -534,41 +551,6 @@ write_sequences (CallbackData   *data,
 
   if (data->verbose)
     g_printerr ("Wrote %lu sequences\n", written);
-}
-
-static void
-write_fastq (FastqSeq   *fastq,
-             GString    *buffer,
-             GIOChannel *channel)
-{
-  GError  *error = NULL;
-
-  g_string_truncate (buffer, 0);
-
-  /* Sequence */
-  buffer = g_string_append_c (buffer, '@');
-  buffer = g_string_append (buffer, fastq->name);
-  buffer = g_string_append_c (buffer, '\n');
-  buffer = g_string_append (buffer, fastq->seq);
-  buffer = g_string_append_c (buffer, '\n');
-
-  /* Quality */
-  buffer = g_string_append_c (buffer, '+');
-  buffer = g_string_append (buffer, fastq->name);
-  buffer = g_string_append_c (buffer, '\n');
-  buffer = g_string_append (buffer, fastq->qual);
-  buffer = g_string_append_c (buffer, '\n');
-
-  g_io_channel_write_chars (channel,
-                            buffer->str,
-                            -1,
-                            NULL,
-                            &error);
-  if (error)
-    {
-      g_printerr ("[ERROR] Writing sequence failed: %s\n", error->message);
-      exit (1);
-    }
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
