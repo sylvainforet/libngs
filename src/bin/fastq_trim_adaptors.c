@@ -126,6 +126,9 @@ static void       print_summary        (CallbackData   *data);
 
 static void       cleanup_data         (CallbackData   *data);
 
+static int        adaptor_cmp          (const void     *a1,
+                                        const void     *a2);
+
 int
 main (int    argc,
       char **argv)
@@ -655,31 +658,43 @@ get_adaptor_seed_seq (Adaptor     *adaptor,
 static void
 print_summary (CallbackData *data)
 {
-  int i;
+  Adaptor **adaptors;
+  int       i;
+
+  adaptors = g_malloc (data->n_adaptors * sizeof (*adaptors));
+  for (i = 0; i < data->n_adaptors; i++)
+    {
+      adaptors[i]         = data->adaptors + i;
+      adaptors[i]->counts = adaptors[i]->counts_fh +
+                            adaptors[i]->counts_ft +
+                            adaptors[i]->counts_rh +
+                            adaptors[i]->counts_rt;
+    }
+
+  qsort (adaptors,
+         data->n_adaptors,
+         sizeof (*adaptors),
+         adaptor_cmp);
 
   g_printerr ("*** Summary of adaptors found\n");
   for (i = 0; i < data->n_adaptors; i++)
     {
-      data->adaptors[i].counts = data->adaptors[i].counts_fh +
-                                 data->adaptors[i].counts_ft +
-                                 data->adaptors[i].counts_rh +
-                                 data->adaptors[i].counts_rt;
-      if (data->adaptors[i].counts > 0)
+      if (adaptors[i]->counts > 0)
         {
           int j;
 
-          g_printerr ("* Adaptor %s", data->adaptors[i].seq);
+          g_printerr ("* Adaptor %s", adaptors[i]->seq);
 
-          for (j = 0; j < data->adaptors[i].names->len; j++)
-            g_printerr (" %s", (char*)g_ptr_array_index (data->adaptors[i].names, j));
+          for (j = 0; j < adaptors[i]->names->len; j++)
+            g_printerr (" %s", (char*)g_ptr_array_index (adaptors[i]->names, j));
 
           g_printerr ("\n");
           g_printerr ("Found %ld times (fh:%ld, ft:%ld, rh:%ld, rt:%ld)\n",
-                      data->adaptors[i].counts,
-                      data->adaptors[i].counts_fh,
-                      data->adaptors[i].counts_ft,
-                      data->adaptors[i].counts_rh,
-                      data->adaptors[i].counts_rt);
+                      adaptors[i]->counts,
+                      adaptors[i]->counts_fh,
+                      adaptors[i]->counts_ft,
+                      adaptors[i]->counts_rh,
+                      adaptors[i]->counts_rt);
         }
     }
   g_printerr ("*** Reads found with adaptors: %ld\n", data->reads_found);
@@ -749,6 +764,20 @@ cleanup_data (CallbackData *data)
       g_string_free (data->buffer, TRUE);
       data->buffer = NULL;
     }
+}
+
+static int
+adaptor_cmp (const void     *a1,
+             const void     *a2)
+{
+  Adaptor *adaptor1 = *(Adaptor**)a1;
+  Adaptor *adaptor2 = *(Adaptor**)a2;
+
+  if (adaptor1->counts < adaptor2->counts)
+    return 1;
+  if (adaptor1->counts > adaptor2->counts)
+    return -1;
+  return 0;
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
