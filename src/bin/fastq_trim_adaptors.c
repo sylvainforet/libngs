@@ -675,25 +675,24 @@ print_summary (CallbackData *data)
          sizeof (*adaptors),
          adaptor_cmp);
 
-  g_printerr ("*** Summary of adaptors found\n");
+  g_printerr ("*** Summary of adaptors found\n"
+              "       total forward-head forward-tail reverse-head reverse-tail sequence names\n");
   for (i = 0; i < data->n_adaptors; i++)
     {
       if (adaptors[i]->counts > 0)
         {
           int j;
 
-          g_printerr ("* Adaptor %s", adaptors[i]->seq);
-
-          for (j = 0; j < adaptors[i]->names->len; j++)
-            g_printerr (" %s", (char*)g_ptr_array_index (adaptors[i]->names, j));
-
-          g_printerr ("\n");
-          g_printerr ("Found %ld times (fh:%ld, ft:%ld, rh:%ld, rt:%ld)\n",
+          g_printerr ("% 12ld % 12ld % 12ld % 12ld % 12ld %s ",
                       adaptors[i]->counts,
                       adaptors[i]->counts_fh,
                       adaptors[i]->counts_ft,
                       adaptors[i]->counts_rh,
-                      adaptors[i]->counts_rt);
+                      adaptors[i]->counts_rt,
+                      adaptors[i]->seq);
+          for (j = 0; j < adaptors[i]->names->len; j++)
+            g_printerr (" %s", (char*)g_ptr_array_index (adaptors[i]->names, j));
+          g_printerr ("\n");
         }
     }
   g_printerr ("*** Reads found with adaptors: %ld\n", data->reads_found);
