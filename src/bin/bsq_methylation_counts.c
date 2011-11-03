@@ -52,7 +52,6 @@ struct _CallbackData
   int                check_strand;
   int                print_letter;
   int                print_all;
-  int                sanger;
 
   unsigned long int  n_chh_filtered;
   unsigned long int  n_bad_orientation;
@@ -145,7 +144,6 @@ parse_args (CallbackData      *data,
       {"fastq",     'f', 0, G_OPTION_ARG_FILENAME_ARRAY, &data->fastq_paths, "Fastq file(s)", NULL},
       {"out",       'o', 0, G_OPTION_ARG_FILENAME,       &data->output_path, "Output file", NULL},
       {"add",       'a', 0, G_OPTION_ARG_FILENAME,       &data->add_path,    "Add results to this file", NULL},
-      {"sanger",    'g', 0, G_OPTION_ARG_NONE,           &data->sanger,      "Qualities in sanger format", NULL},
 
       /* Mapping options */
       {"min_qual",     'm', 0, G_OPTION_ARG_INT,  &data->min_qual,     "Minimum base quality", NULL},
@@ -171,7 +169,6 @@ parse_args (CallbackData      *data,
   data->bsq_paths         = NULL;
   data->output_path       = strdup("-");
   data->add_path          = NULL;
-  data->sanger            = 0;
   data->min_qual          = 0;
   data->max_chh           = 0;
   data->check_strand      = 0;
@@ -218,16 +215,8 @@ parse_args (CallbackData      *data,
                 "it is likely that few or no bases will be considered\n",
                 data->min_qual);
 
-  if (data->sanger)
-    {
-      data->min_qual          += FASTQ_QUAL_0_SANGER;
-      data->nqs_neighbor_qual += FASTQ_QUAL_0_SANGER;
-    }
-  else
-    {
-      data->min_qual          += FASTQ_QUAL_0;
-      data->nqs_neighbor_qual += FASTQ_QUAL_0;
-    }
+  data->min_qual          += fastq_qual0;
+  data->nqs_neighbor_qual += fastq_qual0;
 
   if (data->print_all)
     data->print_letter = 1;

@@ -30,17 +30,28 @@
 #include "ngs_utils.h"
 
 
-static char *fastq_parser_name = NULL;
+char  fastq_qual0          = FASTQ_QUAL_0;
+char  fastq_qual_min_str[] = FASTQ_QUAL_MIN_STR;
 
-static void iter_fastq_simple (const char   *path,
-                               FastqIterFunc func,
-                               void         *data,
-                               GError      **error);
 
-static void iter_fastq_ugly   (const char   *path,
-                               FastqIterFunc func,
-                               void         *data,
-                               GError      **error);
+static char*    fastq_parser_name = NULL;
+
+static void     iter_fastq_simple      (const char     *path,
+                                        FastqIterFunc   func,
+                                        void           *data,
+                                        GError        **error);
+
+static void     iter_fastq_ugly        (const char     *path,
+                                        FastqIterFunc   func,
+                                        void           *data,
+                                        GError        **error);
+
+static gboolean fastq_parse_qual0      (const gchar    *option_name,
+                                        const gchar    *value,
+                                        gpointer        data,
+                                        GError        **error);
+
+static void     init_char2string_table (char            qual0);
 
 FastqSeq*
 fastq_seq_new (void)
@@ -373,7 +384,8 @@ get_fastq_option_group (void)
 {
   GOptionEntry entries[] =
     {
-      {"fastq_parser_name", 0, 0, G_OPTION_ARG_STRING, &fastq_parser_name, "Name of the parser", NULL},
+      {"fastq_parser_name", 0, 0, G_OPTION_ARG_STRING,   &fastq_parser_name, "Name of the parser",               NULL},
+      {"fastq_qual0"      , 0, 0, G_OPTION_ARG_CALLBACK, &fastq_parse_qual0, "The character encoding quality 0", NULL},
       {NULL}
     };
   GOptionGroup *option_group;
@@ -497,6 +509,78 @@ fastq_write_fragment (GIOChannel *channel,
     g_string_free (buffer, TRUE);
 }
 
+static gboolean
+fastq_parse_qual0 (const gchar  *option_name,
+                   const gchar  *value,
+                   gpointer      data,
+                   GError      **error)
+{
+  if (value == NULL || strlen (value) > 1)
+    {
+      g_set_error (error,
+                   NGS_ERROR,
+                   NGS_ARG_ERROR,
+                   "Option `--fastq_qual0' expects a single ascii character (got: %s)",
+                   value);
+      return FALSE;
+    }
+  fastq_qual0 = value[0];
+  switch (fastq_qual0)
+    {
+      case '@':
+      case '%':
+      case '!':
+          break;
+      default:
+          g_printerr ("[WARNING] Unconventional zero quality character: %s\n", value);
+          if (fastq_qual0 > 88)
+            {
+              g_set_error (error,
+                           NGS_ERROR,
+                           NGS_ARG_ERROR,
+                           "fastq_qual0 (%s) value too high, can only encode %d quality values",
+                           value,
+                           128 - fastq_qual0);
+              return FALSE;
+            }
+          break;
+    }
+  if (fastq_qual0 != FASTQ_QUAL_0)
+    {
+      init_char2string_table (fastq_qual0);
+      fastq_qual_min_str[0] = fastq_qual0 + 2;
+    }
+
+  return TRUE;
+}
+
+static void
+init_char2string_table (char qual0)
+{
+  int i;
+
+  for (i = 0; i < 128; ++i)
+    {
+      const int q = i - qual0;
+
+      fastq_qual_char_2_string[i][0] = ' ';
+      if (q <= 0 || q > 99)
+        {
+          fastq_qual_char_2_string[i][1] = '0';
+          fastq_qual_char_2_string[i][2] = ' ';
+        }
+      else if (q <= 9)
+        {
+          fastq_qual_char_2_string[i][1] = '0' + q;
+          fastq_qual_char_2_string[i][2] = ' ';
+        }
+      else
+        {
+          fastq_qual_char_2_string[i][1] = '0' + q / 10;
+          fastq_qual_char_2_string[i][2] = '0' + q % 10;
+        }
+    }
+}
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
  */

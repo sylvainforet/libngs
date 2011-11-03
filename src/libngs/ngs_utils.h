@@ -19,7 +19,8 @@ typedef enum
 {
   NGS_UNKNOWN_ERROR,
   NGS_PARSE_ERROR,
-  NGS_IO_ERROR
+  NGS_IO_ERROR,
+  NGS_ARG_ERROR
 }
 NgsError;
 

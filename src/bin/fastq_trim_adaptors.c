@@ -1,5 +1,4 @@
 /* Copyright (C) 2010  Sylvain FORET
-  data->sanger           = 0;
  *
  * This file is part of libngs.
  *
@@ -359,8 +358,8 @@ iter_func (FastqSeq     *fastq,
         fastq_write (data->out_channel,
                      data->buffer,
                      fastq->name,
-                     "",
-                     "",
+                     "N",
+                     fastq_qual_min_str,
                    &error);
       else
         fastq_write_fragment (data->out_channel,

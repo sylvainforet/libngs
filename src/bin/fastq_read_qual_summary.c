@@ -37,9 +37,6 @@ struct _CallbackData
   char              *input_path;
 
   unsigned int       all;
-
-  int                sanger;
-  int                qual0;
 };
 
 static void parse_args    (CallbackData      *data,
@@ -98,14 +95,12 @@ parse_args (CallbackData      *data,
   GOptionEntry entries[] =
     {
       {"all",    'a', 0, G_OPTION_ARG_NONE, &data->all,    "Do not bin the qualities, print quality for each read", NULL},
-      {"sanger", 'g', 0, G_OPTION_ARG_NONE, &data->sanger, "Qualities in sanger format", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->all    = 0;
-  data->sanger = 0;
+  data->all = 0;
 
   context = g_option_context_new ("FILE - distribution of reads qualities, or lists all reads qualities (-a option)");
   g_option_context_add_group (context, get_fastq_option_group ());
@@ -123,10 +118,6 @@ parse_args (CallbackData      *data,
       exit (1);
     }
   data->input_path = (*argv)[1];
-
-  data->qual0 = FASTQ_QUAL_0;
-  if (data->sanger)
-    data->qual0 = FASTQ_QUAL_0_SANGER;
 
   if (!data->all)
     init_qual (data);
@@ -156,7 +147,7 @@ iter_func (FastqSeq     *fastq,
   int read_mean = 0;
 
   for (i = 0; i < fastq->size; i++)
-    read_qual += fastq->qual[i] - data->qual0;
+    read_qual += fastq->qual[i] - fastq_qual0;
 
   read_mean = 0.5 + ((float)read_qual) / fastq->size;
   data->qual[read_mean]++;

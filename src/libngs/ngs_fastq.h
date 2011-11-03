@@ -21,11 +21,13 @@ struct _FastqSeq
   int   size;
 };
 
-#define FASTQ_QUAL_0        64 /* '@' */
-#define FASTQ_QUAL_0_SANGER 33 /* '!' */
+#define FASTQ_QUAL_0       33
+ /* Illumina min qual is 2 */
+#define FASTQ_QUAL_MIN_STR "#"
 
-extern char *fastq_qual_char_2_string[];
-extern char *fastq_qual_char_2_string_sanger[];
+extern char fastq_qual0;
+extern char fastq_qual_min_str[];
+extern char fastq_qual_char_2_string[][4];
 
 FastqSeq*   fastq_seq_new    (void);
 

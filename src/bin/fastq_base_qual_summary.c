@@ -35,9 +35,6 @@ struct _CallbackData
   unsigned long int  qual[N_QUAL];
 
   char              *input_path;
-
-  int                sanger;
-  int                qual0;
 };
 
 static void parse_args (CallbackData      *data,
@@ -86,13 +83,10 @@ parse_args (CallbackData      *data,
   GOptionEntry entries[] =
     {
       /*{"fast", 'f', 0, G_OPTION_ARG_NONE, &data->fast, "Faster and less robust method (use at your own risk)", NULL},*/
-      {"sanger", 'g', 0, G_OPTION_ARG_NONE, &data->sanger, "Qualities in sanger format", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
-
-  data->sanger = 0;
 
   context = g_option_context_new ("FILE - Computes distribution of the base qualities");
   g_option_context_add_group (context, get_fastq_option_group ());
@@ -111,10 +105,6 @@ parse_args (CallbackData      *data,
     }
   data->input_path = (*argv)[1];
 
-  data->qual0 = FASTQ_QUAL_0;
-  if (data->sanger)
-    data->qual0 = FASTQ_QUAL_0_SANGER;
-
   init_qual (data);
 }
 
@@ -125,7 +115,7 @@ iter_func (FastqSeq     *fastq,
   int i;
 
   for (i = 0; i < fastq->size; i++)
-    data->qual[fastq->qual[i] - data->qual0]++;
+    data->qual[fastq->qual[i] - fastq_qual0]++;
 
   return 1;
 }
