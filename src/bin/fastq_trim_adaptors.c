@@ -311,7 +311,7 @@ iter_func (FastqSeq     *fastq,
                   minj = 0;
                   if (i - seed->adaptor->size + 1 > 0)
                     minj = i - seed->adaptor->size + 1;
-                  for (j = minj; j <= i; j++)
+                  for (j = i + SEED_SIZE - 1; j >= minj; j--)
                     mask[j] = 1;
                 }
             }
@@ -384,7 +384,7 @@ iter_func (FastqSeq     *fastq,
   else
     {
       fastq_write (data->out_channel,
-                   NULL,
+                   data->buffer,
                    fastq->name,
                    fastq->seq,
                    fastq->qual,
