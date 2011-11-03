@@ -13,6 +13,4 @@
 
 * Make a single option group for the whole libngs
 
-* THe strdup("-") used for most ouput_path is evil. Memory leak. Change it!
-
-* Add an option for more flexibility in the encoding of qualities in the fastq format.
+* The strdup("-") used for most ouput_path is evil. Memory leak. Change it!
