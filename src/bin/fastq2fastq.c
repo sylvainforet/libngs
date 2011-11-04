@@ -180,8 +180,8 @@ iter_func (FastqSeq     *fastq,
       for (i = 0; i < l; i++)
         {
           if (fastq->name[i] == ':')
-            n_separators++;
-          else if (n_separators == 7)
+            ++n_separators;
+          if (n_separators == 7)
             {
               if (fastq->name[i - 1] == '1')
                 pair_idx = '1';
@@ -193,9 +193,8 @@ iter_func (FastqSeq     *fastq,
       if (pair_idx > 0)
         {
           for (; i < l; i++)
-            {
-              fastq->name[i - 2] = fastq->name[i];
-            }
+            fastq->name[i - 2] = fastq->name[i];
+
           fastq->name[l - 2] = '/';
           fastq->name[l - 1] = pair_idx;
         }
