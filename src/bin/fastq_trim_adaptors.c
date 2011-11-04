@@ -80,6 +80,8 @@ struct _CallbackData
 
   int         len;
   int         mis;
+  int         suf;
+  int         remove;
   int         verbose;
 
   int         use_stdout: 1;
@@ -165,10 +167,12 @@ parse_args (CallbackData   *data,
 {
   GOptionEntry entries[] =
     {
-      {"seqout"  , 'o', 0, G_OPTION_ARG_FILENAME, &data->out_path, "Sequences file"              , NULL},
-      {"len",      'l', 0, G_OPTION_ARG_INT,      &data->len,      "Minimum match length"        , NULL},
-      {"mis",      'm', 0, G_OPTION_ARG_INT,      &data->mis,      "Maximum number of mismatches", NULL},
-      {"verbose",  'v', 0, G_OPTION_ARG_NONE,     &data->verbose,  "Verbose output"              , NULL},
+      {"seqout"  , 'o', 0, G_OPTION_ARG_FILENAME, &data->out_path, "Sequences file",                             NULL},
+      {"len",      'l', 0, G_OPTION_ARG_INT,      &data->len,      "Minimum match length",                       NULL},
+      {"mis",      'm', 0, G_OPTION_ARG_INT,      &data->mis,      "Maximum number of mismatches",               NULL},
+      {"suf",      's', 0, G_OPTION_ARG_INT,      &data->suf,      "Length sufficient to call a full match",     NULL},
+      {"remove",   'r', 0, G_OPTION_ARG_NONE,     &data->remove,   "Remove instead of trim reads with adaptors", NULL},
+      {"verbose",  'v', 0, G_OPTION_ARG_NONE,     &data->verbose,  "Verbose output",                             NULL},
       {NULL}
     };
   GError         *error = NULL;
@@ -180,6 +184,8 @@ parse_args (CallbackData   *data,
   data->use_stdout       = 1;
   data->len              = SEED_SIZE;
   data->mis              = 1;
+  data->suf              = G_MAXINT;
+  data->remove           = 0;
   data->verbose          = 0;
   data->reads_found      = 0;
 
@@ -269,22 +275,25 @@ iter_func (FastqSeq     *fastq,
                                   mismatches);
               if (match)
                 {
-                  int j;
-                  int maxj;
-
                   if (seed->forward)
                     seed->adaptor->counts_fh++;
                   else
                     seed->adaptor->counts_rh++;
 
-                  if (mask == NULL)
-                    mask = g_malloc0 (fastq->size);
+                  if (!data->remove)
+                    {
+                      int j;
+                      int maxj;
 
-                  maxj = fastq->size;
-                  if (i + seed->adaptor->size < fastq->size)
-                    maxj = i + seed->adaptor->size;
-                  for (j = i; j < maxj; j++)
-                    mask[j] = 1;
+                      if (mask == NULL)
+                        mask = g_malloc0 (fastq->size);
+
+                      maxj = fastq->size;
+                      if (i + seed->adaptor->size < fastq->size)
+                        maxj = i + seed->adaptor->size;
+                      for (j = i; j < maxj; j++)
+                        mask[j] = 1;
+                    }
                 }
             }
           else
@@ -297,22 +306,25 @@ iter_func (FastqSeq     *fastq,
                                   mismatches);
               if (match)
                 {
-                  int j;
-                  int minj;
-
                   if (seed->forward)
                     seed->adaptor->counts_ft++;
                   else
                     seed->adaptor->counts_rt++;
 
-                  if (mask == NULL)
-                    mask = g_malloc0 (fastq->size);
+                  if (!data->remove)
+                    {
+                      int j;
+                      int minj;
 
-                  minj = 0;
-                  if (i - seed->adaptor->size + 1 > 0)
-                    minj = i - seed->adaptor->size + 1;
-                  for (j = i + SEED_SIZE - 1; j >= minj; j--)
-                    mask[j] = 1;
+                      if (mask == NULL)
+                        mask = g_malloc0 (fastq->size);
+
+                      minj = 0;
+                      if (i - seed->adaptor->size + 1 > 0)
+                        minj = i - seed->adaptor->size + 1;
+                      for (j = i + SEED_SIZE - 1; j >= minj; j--)
+                        mask[j] = 1;
+                    }
                 }
             }
           if (match)
@@ -326,32 +338,35 @@ iter_func (FastqSeq     *fastq,
       int max_start     = -1;
       int max_len       = 0;
 
-      for (i = 0; i < fastq->size; i++)
+      if (!data->remove)
         {
-          if (mask[i] == 0)
+          for (i = 0; i < fastq->size; i++)
             {
-              if (current_start == -1)
-                  current_start = i;
-              current_len++;
-            }
-          else
-            {
-              if (current_start != -1)
+              if (mask[i] == 0)
                 {
-                  if (current_len > max_len)
+                  if (current_start == -1)
+                    current_start = i;
+                  current_len++;
+                }
+              else
+                {
+                  if (current_start != -1)
                     {
-                      max_start = current_start;
-                      max_len   = current_len;
+                      if (current_len > max_len)
+                        {
+                          max_start = current_start;
+                          max_len   = current_len;
+                        }
+                      current_start = -1;
+                      current_len   = 0;
                     }
-                  current_start = -1;
-                  current_len   = 0;
                 }
             }
-        }
-      if (current_start != -1 && current_len > max_len)
-        {
-          max_start = current_start;
-          max_len   = current_len;
+          if (current_start != -1 && current_len > max_len)
+            {
+              max_start = current_start;
+              max_len   = current_len;
+            }
         }
 
       if (max_start == -1)
@@ -423,16 +438,17 @@ match_head (CallbackData *data,
             {
               ++mismatches;
               if (mismatches > data->mis)
-                return 0;
+                {
+                  if (j >= data->suf)
+                    return 1;
+                  return 0;
+                }
             }
           ++j;
           ++k;
         }
       if (mismatches <= data->mis)
-        {
-          /* g_printerr ("H %d: %s %s (%d - %d) / (%d - %d)\n", forward, fastq->seq, adaptor->seq, i, k - 1, 0, j - 1); */
-          return 1;
-        }
+        return 1;
     }
 
   return 0;
@@ -453,6 +469,7 @@ match_tail (CallbackData *data,
       const char *seq = forward ? adaptor->seq : adaptor->rev;
       int         j   = adaptor->size - SEED_SIZE - 1;
       int         k   = i - 1;
+      int         l   = SEED_SIZE;
 
       while (j >= 0 && k >= 0)
         {
@@ -460,19 +477,21 @@ match_tail (CallbackData *data,
             {
               ++mismatches;
               if (mismatches > data->mis)
-                return 0;
+                {
+                  if (l >= data->suf)
+                    return 1;
+                  return 0;
+                }
             }
           --j;
           --k;
+          ++l;
         }
       /* Full match: counted as head */
       if (j == -1)
         return 0;
       if (mismatches <= data->mis)
-        {
-          /* g_printerr ("T %d: %s %s (%d - %d) / (%d - %d)\n", forward, fastq->seq, adaptor->seq, k + 1, i + SEED_SIZE - 1, j + 1, adaptor->size - 1); */
-          return 1;
-        }
+        return 1;
     }
 
   return 0;
@@ -695,6 +714,7 @@ print_summary (CallbackData *data)
           g_printerr ("\n");
         }
     }
+  g_free (adaptors);
   g_printerr ("*** Reads found with adaptors: %ld\n", data->reads_found);
 }
 
