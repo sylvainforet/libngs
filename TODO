@@ -14,3 +14,5 @@
 * Make a single option group for the whole libngs
 
 * The strdup("-") used for most ouput_path is evil. Memory leak. Change it!
+
+* Replace `int xxx: 1;' by `unsigned int xxx: 1;'

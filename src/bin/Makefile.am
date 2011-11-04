@@ -12,6 +12,7 @@ INCLUDES = \
 
 bin_PROGRAMS = \
 	fastq2fasta \
+	fastq2fastq \
 	fastq_base_qual_summary \
 	fastq_fetch \
 	fastq_interleave \
@@ -42,6 +43,11 @@ fastq2fasta_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 fastq2fasta_SOURCES = \
 	fastq2fasta.c
+
+fastq2fastq_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+fastq2fastq_SOURCES = \
+	fastq2fastq.c
 
 fastq_base_qual_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
