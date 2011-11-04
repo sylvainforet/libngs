@@ -17,7 +17,7 @@
  */
 
 /**
- *
+ * OBSOLETE: use fastq pairs instead
  */
 
 #include <stdlib.h>
@@ -222,7 +222,8 @@ parse_args (CallbackData   *data,
   data->use_stdout     = 1;
   data->min_size       = 0;
 
-  context = g_option_context_new ("FILE1 FILE2 - interleaves the sequences from two fastq files");
+  context = g_option_context_new ("FILE1 FILE2 - interleaves the sequences from two fastq files\n"
+                                  "*** (OBSOLETE: use fastq_pairs instead) ***");
   g_option_context_add_group (context, get_fastq_option_group ());
   g_option_context_add_main_entries (context, entries, NULL);
   if (!g_option_context_parse (context, argc, argv, &error))

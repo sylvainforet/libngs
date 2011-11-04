@@ -17,6 +17,7 @@ bin_PROGRAMS = \
 	fastq_interleave \
 	fastq_letter_qual \
 	fastq_letter_pos \
+	fastq_pairs \
 	fastq_qual_length_summary \
 	fastq_read_qual_summary \
 	fastq_revcomp \
@@ -71,6 +72,11 @@ fastq_qual_length_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 fastq_qual_length_summary_SOURCES = \
 	fastq_qual_length_summary.c
+
+fastq_pairs_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+fastq_sample_SOURCES = \
+	fastq_pairs.c
 
 fastq_read_qual_summary_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
