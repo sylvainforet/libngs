@@ -35,6 +35,7 @@ struct _CallbackData
   GIOChannel *output_channel;
 
   char       *qual0;
+  int         qual_max;
   int         delta_qual;
   int         qual_name;
   int         old_pairs;
@@ -98,6 +99,7 @@ parse_args (CallbackData   *data,
     {
       {"out"  ,        'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output file",                                 NULL},
       {"qual0",        'q', 0, G_OPTION_ARG_STRING,   &data->qual0,       "The character for 0 quality value",           NULL},
+      {"qual_max",     'Q', 0, G_OPTION_ARG_INT,      &data->qual_max,    "Maximum quality value",                       NULL},
       {"qual_name",    'n', 0, G_OPTION_ARG_NONE,     &data->qual_name,   "Write the full name before the quality line", NULL},
       {"old_pairs",    'p', 0, G_OPTION_ARG_NONE,     &data->old_pairs,   "Convert new pair format to old format",       NULL},
       {NULL}
@@ -109,6 +111,7 @@ parse_args (CallbackData   *data,
   data->output_channel = NULL;
   data->qual0          = NULL;
   data->qual0c         = fastq_qual0;
+  data->qual_max       = -1;
   data->qual_name      = 0;
   data->old_pairs      = 0;
   data->use_stdout     = 0;
@@ -207,6 +210,15 @@ iter_func (FastqSeq     *fastq,
 
       for (i = 0; i < fastq->size; i++)
         fastq->qual[i] += data->delta_qual;
+    }
+  /* Maximum quality, to keep allpaths happy */
+  if (data->qual_max >= 0)
+    {
+      int i;
+
+      for (i = 0; i < fastq->size; i++)
+        if (fastq->qual[i] > data->qual_max)
+          fastq->qual[i] = data->qual_max;
     }
 
   buffer = g_string_sized_new (512);
