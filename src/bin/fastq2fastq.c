@@ -43,6 +43,7 @@ struct _CallbackData
   int         use_stdout;
 
   char        qual0c;
+  char        qual_maxc;
 };
 
 static int  iter_func  (FastqSeq       *fastq,
@@ -112,6 +113,7 @@ parse_args (CallbackData   *data,
   data->qual0          = NULL;
   data->qual0c         = fastq_qual0;
   data->qual_max       = -1;
+  data->qual_maxc      = fastq_qual0 + 40;
   data->qual_name      = 0;
   data->old_pairs      = 0;
   data->use_stdout     = 0;
@@ -144,6 +146,9 @@ parse_args (CallbackData   *data,
       data->qual0c = data->qual0[0];
     }
   data->delta_qual = data->qual0c - fastq_qual0;
+
+  if (data->qual_max >= 0)
+    data->qual_maxc = data->qual0c + data->qual_max;
 
   if (!data->output_path)
     data->output_path = g_strdup ("-");
@@ -217,8 +222,8 @@ iter_func (FastqSeq     *fastq,
       int i;
 
       for (i = 0; i < fastq->size; i++)
-        if (fastq->qual[i] > data->qual_max)
-          fastq->qual[i] = data->qual_max;
+        if (fastq->qual[i] > data->qual_maxc)
+          fastq->qual[i] = data->qual_maxc;
     }
 
   buffer = g_string_sized_new (512);
