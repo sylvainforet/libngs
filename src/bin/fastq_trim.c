@@ -29,21 +29,24 @@ typedef struct _CallbackData CallbackData;
 
 struct _CallbackData
 {
-  char       *input_path;
-  char       *output_path;
-  GIOChannel *output_channel;
+  char        *input_path;
+  char        *output_path;
+  GIOChannel  *output_channel;
 
-  int         start;
-  int         end;
-  int         tot_trim;
-  int         qual;
-  int         len;
-  int         win;
-  int         qwin;
-  int         non;
-  int         keep;
+  int          start;
+  int          end;
+  int          tot_trim;
+  int          qual;
+  int          len;
+  int          win;
+  int          qwin;
+  int          non;
+  int          keep;
 
-  int         use_stdout: 1;
+  char         n_char1;
+  char         n_char2;
+
+  unsigned int use_stdout: 1;
 };
 
 static void parse_args  (CallbackData      *data,
@@ -125,6 +128,8 @@ parse_args (CallbackData      *data,
   data->win            = 0;
   data->qwin           = 0;
   data->non            = 0;
+  data->n_char1        = '\0';
+  data->n_char2        = '\0';
   data->keep           = 0;
 
   context = g_option_context_new ("FILE - trims fastq reads");
@@ -159,6 +164,12 @@ parse_args (CallbackData      *data,
     }
   data->tot_trim = data->start + data->end;
 
+  if (data->non)
+    {
+      data->n_char1 = 'N';
+      data->n_char2 = 'n';
+    }
+
   if (data->output_path[0] == '-' && data->output_path[1] == '\0')
     data->output_channel = g_io_channel_unix_new (STDOUT_FILENO);
   else
@@ -192,8 +203,8 @@ iter_func (FastqSeq     *fastq,
   end   = fastq->size - data->end;
   start = data->start;
 
-  /* Ns */
-  if (data->non)
+  /* Low quality bases and Ns */
+  if (data->qual > 0 || data->non)
     {
       int max_idx = start;
       int max_len = 0;
@@ -201,33 +212,9 @@ iter_func (FastqSeq     *fastq,
       int i;
 
       for (i = start; i < end; i++)
-        if (fastq->seq[i] == 'N' || fastq->seq[i] == 'n')
-          {
-            if (i - tmp_idx > max_len)
-              {
-                max_idx = tmp_idx;
-                max_len = i - tmp_idx;
-              }
-            tmp_idx = i + 1;
-          }
-      if (i - tmp_idx > max_len)
-        {
-          max_idx = tmp_idx;
-          max_len = i - tmp_idx;
-        }
-      start = max_idx;
-      end   = max_idx + max_len;
-    }
-  /* Low quality bases */
-  if (data->qual > 0)
-    {
-      int max_idx = start;
-      int max_len = 0;
-      int tmp_idx = start;
-      int i;
-
-      for (i = start; i < end; i++)
-        if (fastq->qual[i] - fastq_qual0 < data->qual)
+        if (fastq->qual[i] - fastq_qual0 < data->qual ||
+            fastq->seq[i] == data->n_char1 ||
+            fastq->seq[i] == data->n_char2)
           {
             if (i - tmp_idx > max_len)
               {
