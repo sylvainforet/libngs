@@ -40,6 +40,7 @@ struct _CallbackData
   int         len;
   int         win;
   int         qwin;
+  int         non;
   int         keep;
 
   int         use_stdout: 1;
@@ -100,14 +101,15 @@ parse_args (CallbackData      *data,
 {
   GOptionEntry entries[] =
     {
-      {"out",    'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output file", NULL},
-      {"start",  's', 0, G_OPTION_ARG_INT,  &data->start,  "Number of positions to trim at the start", NULL},
-      {"end",    'e', 0, G_OPTION_ARG_INT,  &data->end,    "Number of positions to trim at the end", NULL},
-      {"qual",   'q', 0, G_OPTION_ARG_INT,  &data->qual,   "Minimum quality", NULL},
-      {"len",    'l', 0, G_OPTION_ARG_INT,  &data->len,    "Minimum length", NULL},
-      {"win",    'w', 0, G_OPTION_ARG_INT,  &data->win,    "Size of the slidding window", NULL},
-      {"qwin",   'n', 0, G_OPTION_ARG_INT,  &data->qwin,   "Minimum sliding window mean quality", NULL},
-      {"keep",   'k', 0, G_OPTION_ARG_NONE, &data->keep,   "Keep an pseudo-entry for too small reads", NULL},
+      {"out",    'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output file",                              NULL},
+      {"start",  's', 0, G_OPTION_ARG_INT,      &data->start,       "Number of positions to trim at the start", NULL},
+      {"end",    'e', 0, G_OPTION_ARG_INT,      &data->end,         "Number of positions to trim at the end",   NULL},
+      {"qual",   'q', 0, G_OPTION_ARG_INT,      &data->qual,        "Minimum quality",                          NULL},
+      {"len",    'l', 0, G_OPTION_ARG_INT,      &data->len,         "Minimum length",                           NULL},
+      {"win",    'w', 0, G_OPTION_ARG_INT,      &data->win,         "Size of the slidding window",              NULL},
+      {"qwin",   'n', 0, G_OPTION_ARG_INT,      &data->qwin,        "Minimum sliding window mean quality",      NULL},
+      {"non",    'N', 0, G_OPTION_ARG_NONE,     &data->non,         "Remove all Ns",                            NULL},
+      {"keep",   'k', 0, G_OPTION_ARG_NONE,     &data->keep,        "Keep an pseudo-entry for too small reads", NULL},
       {NULL}
     };
   GError         *error = NULL;
@@ -122,6 +124,7 @@ parse_args (CallbackData      *data,
   data->len            = 0;
   data->win            = 0;
   data->qwin           = 0;
+  data->non            = 0;
   data->keep           = 0;
 
   context = g_option_context_new ("FILE - trims fastq reads");
@@ -189,14 +192,40 @@ iter_func (FastqSeq     *fastq,
   end   = fastq->size - data->end;
   start = data->start;
 
+  /* Ns */
+  if (data->non)
+    {
+      int max_idx = start;
+      int max_len = 0;
+      int tmp_idx = start;
+      int i;
+
+      for (i = start; i < end; i++)
+        if (fastq->seq[i] == 'N' || fastq->seq[i] == 'n')
+          {
+            if (i - tmp_idx > max_len)
+              {
+                max_idx = tmp_idx;
+                max_len = i - tmp_idx;
+              }
+            tmp_idx = i + 1;
+          }
+      if (i - tmp_idx > max_len)
+        {
+          max_idx = tmp_idx;
+          max_len = i - tmp_idx;
+        }
+      start = max_idx;
+      end   = max_idx + max_len;
+    }
   /* Low quality bases */
-  /* TODO remove Ns !!! This is quite important */
   if (data->qual > 0)
     {
       int max_idx = start;
       int max_len = 0;
       int tmp_idx = start;
       int i;
+
       for (i = start; i < end; i++)
         if (fastq->qual[i] - fastq_qual0 < data->qual)
           {
