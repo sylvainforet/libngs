@@ -73,6 +73,7 @@ struct _CallbackData
 
   Seed      **seeds;
 
+  long        n_reads;
   long        reads_found;
 
   Adaptor    *adaptors;
@@ -187,6 +188,7 @@ parse_args (CallbackData   *data,
   data->suf              = G_MAXINT;
   data->remove           = 0;
   data->verbose          = 0;
+  data->n_reads          = 0;
   data->reads_found      = 0;
 
   context = g_option_context_new ("ADAPTORS READS - Look for adaptors from ADAPTORS (fasta format) in READS (fastq)");
@@ -247,6 +249,7 @@ iter_func (FastqSeq     *fastq,
   char   *mask  = NULL;
   GError *error = NULL;
 
+  ++data->n_reads;
   if (fastq->size < data->len)
     return ret;
 
@@ -715,7 +718,8 @@ print_summary (CallbackData *data)
         }
     }
   g_free (adaptors);
-  g_printerr ("*** Reads found with adaptors: %ld\n", data->reads_found);
+  g_printerr ("*** Reads found with adaptors: %ld / %ld\n",
+              data->reads_found, data->n_reads);
 }
 
 static void
