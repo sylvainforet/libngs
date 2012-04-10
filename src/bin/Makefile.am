@@ -81,7 +81,7 @@ fastq_qual_length_summary_SOURCES = \
 
 fastq_pairs_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
-fastq_sample_SOURCES = \
+fastq_pairs_SOURCES = \
 	fastq_pairs.c
 
 fastq_read_qual_summary_LDADD = \
