@@ -607,21 +607,21 @@ add_seed (CallbackData *data,
   guint32  idx;
   int      i;
 
-  seq = get_adaptor_seed_seq (adaptor, forward, head);
-  idx = make_seed (seq);
+  seq              = get_adaptor_seed_seq (adaptor, forward, head);
+  idx              = make_seed (seq);
 
-  seed                    = g_slice_new0 (Seed);
-  seed->adaptor           = adaptor;
-  seed->forward           = forward;
-  seed->head              = head;
-  seed->exact             = 1;
-  seed->next              = data->seeds[idx];
-  data->seeds[idx]        = seed;
+  seed             = g_slice_new0 (Seed);
+  seed->adaptor    = adaptor;
+  seed->forward    = forward;
+  seed->head       = head;
+  seed->exact      = 1;
+  seed->next       = data->seeds[idx];
+  data->seeds[idx] = seed;
 
   for (i = 0; i < SEED_SIZE; i++)
     {
       const char c = seq[i];
-      int j;
+      int        j;
 
       for (j = 0; j < 4; j++)
         {
@@ -630,15 +630,15 @@ add_seed (CallbackData *data,
           if (d == c)
             continue;
 
-          seq[i]                        = d;
-          idx                           = make_seed (seq);
-          seed                          = g_slice_new0 (Seed);
-          seed->adaptor                 = adaptor;
-          seed->forward                 = forward;
-          seed->head                    = head;
-          seed->exact                   = 0;
-          seed->next                    = data->seeds[idx];
-          data->seeds[idx]              = seed;
+          seq[i]           = d;
+          idx              = make_seed (seq);
+          seed             = g_slice_new0 (Seed);
+          seed->adaptor    = adaptor;
+          seed->forward    = forward;
+          seed->head       = head;
+          seed->exact      = 0;
+          seed->next       = data->seeds[idx];
+          data->seeds[idx] = seed;
         }
       seq[i] = c;
     }
