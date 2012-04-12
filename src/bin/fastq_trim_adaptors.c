@@ -30,7 +30,7 @@
 #include "ngs_utils.h"
 
 
-#define SEED_SIZE 12
+#define SEED_SIZE 8
 #define NB_SEEDS  (1 << (SEED_SIZE * BITS_PER_NUC))
 
 
@@ -183,7 +183,7 @@ parse_args (CallbackData   *data,
   data->out_channel      = NULL;
   data->buffer           = NULL;
   data->use_stdout       = 1;
-  data->len              = SEED_SIZE;
+  data->len              = 2 * SEED_SIZE;
   data->mis              = 1;
   data->suf              = G_MAXINT;
   data->remove           = 0;
