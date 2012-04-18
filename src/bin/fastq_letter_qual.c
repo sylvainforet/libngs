@@ -231,7 +231,7 @@ print_letter_qual (CallbackData *data)
            "G\t"
            "C\t"
            "N\n");
-  for (i = 0; i < 40; i++)
+  for (i = 0; i < N_QUAL; i++)
     {
       g_print ("%ld\t"
                "%ld\t"
