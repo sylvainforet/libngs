@@ -26,13 +26,13 @@
 #include "ngs_fastq.h"
 
 
-#define N_QUAL 40
+#define N_QUAL 60
 
 typedef struct _CallbackData CallbackData;
 
 struct _CallbackData
 {
-  unsigned long int  qual[40];
+  unsigned long int  qual[128];
 
   char              *input_path;
 
@@ -128,10 +128,10 @@ iter_func_all (FastqSeq     *fastq,
                CallbackData *data)
 {
   int i;
-  int read_qual = 0;
+  long read_qual = 0;
 
   for (i = 0; i < fastq->size; i++)
-    read_qual += fastq->qual[i] - 64;
+    read_qual += fastq->qual[i] - fastq_qual0;
 
   g_print ("%f\n", ((float)read_qual) / fastq->size);
 
@@ -143,8 +143,8 @@ iter_func (FastqSeq     *fastq,
            CallbackData *data)
 {
   int i;
-  int read_qual = 0;
-  int read_mean = 0;
+  long read_qual = 0;
+  long read_mean = 0;
 
   for (i = 0; i < fastq->size; i++)
     read_qual += fastq->qual[i] - fastq_qual0;
