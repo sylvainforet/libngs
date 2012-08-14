@@ -204,6 +204,8 @@ FastaIterFlex* fasta_iter_new_flex (const char   *path,
 
 FastaSeq* fasta_iter_next_flex (FastaIterFlex *iter)
 {
+  if (!iter->scanner)
+    return NULL;
   if (iter->data.fasta != NULL)
     {
       g_string_truncate (iter->data.buffer, 0);
@@ -217,6 +219,7 @@ FastaSeq* fasta_iter_next_flex (FastaIterFlex *iter)
       fclose (iter->file);
       iter->file = NULL;
       yylex_destroy (iter->scanner);
+      iter->scanner = NULL;
       return NULL;
     }
   return iter->data.fasta;

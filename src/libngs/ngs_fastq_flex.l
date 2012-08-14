@@ -172,6 +172,8 @@ FastqIterFlex* fastq_iter_new_flex (const char   *path,
 
 FastqSeq* fastq_iter_next_flex (FastqIterFlex *iter)
 {
+  if (!iter->scanner)
+    return NULL;
   if (iter->data.fastq != NULL)
     {
       fastq_seq_free (iter->data.fastq);
@@ -183,6 +185,7 @@ FastqSeq* fastq_iter_next_flex (FastqIterFlex *iter)
       fclose (iter->file);
       iter->file = NULL;
       yylex_destroy (iter->scanner);
+      iter->scanner = NULL;
     }
   return iter->data.fastq;
 }

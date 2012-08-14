@@ -74,6 +74,7 @@ main (int    argc,
   CallbackData data;
   FastqSeq    *seq1;
   FastqSeq    *seq2;
+  FastqSeq    *tmp;
   FastqIter   *iter1;
   FastqIter   *iter2;
   GString     *buffer;
@@ -102,7 +103,11 @@ main (int    argc,
     iter2 = iter1;
 
   buffer = g_string_sized_new (1024);
-  seq1   = fastq_iter_next (iter1);
+  tmp    = fastq_iter_next (iter1);
+  if (data.one_input)
+    seq1 = fastq_seq_copy (tmp);
+  else
+    seq1 = tmp;
   seq2   = fastq_iter_next (iter2);
   while (seq1 != NULL && seq2 != NULL)
     {
@@ -172,9 +177,19 @@ main (int    argc,
           if (error != NULL)
             break;
         }
-      seq1 = fastq_iter_next (iter1);
+      if (data.one_input)
+        fastq_seq_free (seq1);
+      tmp = fastq_iter_next (iter1);
+      if (data.one_input)
+        seq1 = fastq_seq_copy (tmp);
+      else
+        seq1 = tmp;
       seq2 = fastq_iter_next (iter2);
     }
+  /* In case seq1 was allocated, but the loop was never called */
+  if (data.one_input)
+    fastq_seq_free (seq1);
+
   if (error != NULL)
     {
       g_printerr ("[ERROR] Writing sequence failed: %s\n", error->message);
@@ -238,10 +253,14 @@ parse_args (CallbackData   *data,
       exit (1);
     }
   data->input_path1 = (*argv)[1];
-  if (*argc == 2 || !strcmp (data->input_path1, data->input_path2))
-    data->one_input   = 1;
+  if (*argc == 2)
+    data->one_input = 1;
   else
-    data->input_path2 = (*argv)[2];
+    {
+      data->input_path2 = (*argv)[2];
+      if (!strcmp (data->input_path1, data->input_path2))
+        data->one_input = 1;
+    }
 
   if (!data->output_path1 && !data->output_path2)
     {
