@@ -1,7 +1,7 @@
 # Process this file with autoconf to produce a configure script.
 AC_PREREQ([2.54])
 
-AC_INIT([ngs], [0.0.2], [sylvain foret at anu edu au])
+AC_INIT([ngs], [0.0.3], [sylvain foret at anu edu au])
 AC_CONFIG_AUX_DIR(build)
 AC_CONFIG_MACRO_DIR(build)
 AC_CONFIG_SRCDIR([src/libngs/ngs_fastq.h])
@@ -48,10 +48,18 @@ if test "x$GCC" = "xyes"; then
 fi
 changequote([,])dnl
 
+AC_CHECK_PROG(PDFLATEX, pdflatex, pdflatex)
+if test -z "$PDFLATEX"; then
+    AC_MSG_WARN([Unable to create PDF version of the user manual.])
+fi
+
+AM_CONDITIONAL([HAVE_PDFLATEX], test -n "$PDFLATEX")
+
 AC_SUBST(gbpplugindir)
 
 AC_CONFIG_FILES([
 	Makefile
+    doc/Makefile
 	src/Makefile
 	src/bin/Makefile
 	src/libngs/Makefile

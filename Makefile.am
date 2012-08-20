@@ -1,7 +1,8 @@
 ACLOCAL_AMFLAGS = -I build
 
 SUBDIRS = \
-	src
+	src \
+	doc
 
 EXTRA_DIST = \
 	autogen.sh

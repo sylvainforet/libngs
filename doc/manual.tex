@@ -1,0 +1,61 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[latin1]{inputenc}
+
+
+\title{LibNGS}
+
+
+\author{Sylvain FOR\^ET}
+
+
+\begin{document}
+
+\maketitle
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
+\section{Philosophy}
+
+\subsection{Design}
+
+The central component of this software is a library, located in
+\texttt{src/libns}.
+This library includes the following components:
+\begin{itemize}
+    \item Data structures
+    \item IO routines
+    \item Some algorithms (mainly kmer hashing for now)
+\end{itemize}
+The bulk of the library is written in C.
+The parser are written in LEX.
+
+Various binary programs are implemented using this libraries.
+These can be found in \texttt{src/bin}.
+
+Finally, a few shell, python and R scripts wrapping these binary utilities or
+using their outputs are also provided.
+These scripts are located in \texttt{src/scripts}.
+
+\subsection{Usage}
+
+All the utilities are design to be able to read from the standard input and to
+write the standard output.
+
+GIVE SOME EXAMPLE
+
+\section{Programs}
+
+Description of all the programs.
+
+\section{Library}
+
+Documentation of the public interface of the C library.
+
+\end{document}
+
+% vim:ft=tex:spell:ts=4:sw=4:sts=4:expandtab:
+%
