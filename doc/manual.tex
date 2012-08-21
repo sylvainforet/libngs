@@ -1,12 +1,11 @@
 \documentclass[a4paper,12pt]{article}
 \usepackage[latin1]{inputenc}
+\usepackage{tabularx}
 
+\renewcommand{\arraystretch}{1.5}
 
 \title{LibNGS}
-
-
 \author{Sylvain FOR\^ET}
-
 
 \begin{document}
 
@@ -22,6 +21,7 @@
 
 \subsection{Design}
 
+\paragraph{}
 The central component of this software is a library, located in
 \texttt{src/libns}.
 This library includes the following components:
@@ -31,29 +31,274 @@ This library includes the following components:
     \item Some algorithms (mainly kmer hashing for now)
 \end{itemize}
 The bulk of the library is written in C.
-The parser are written in LEX.
+The parser are automatically generated with LEX.
 
+\paragraph{}
 Various binary programs are implemented using this libraries.
 These can be found in \texttt{src/bin}.
 
+\paragraph{}
 Finally, a few shell, python and R scripts wrapping these binary utilities or
 using their outputs are also provided.
 These scripts are located in \texttt{src/scripts}.
 
 \subsection{Usage}
 
-All the utilities are design to be able to read from the standard input and to
-write the standard output.
+\paragraph{}
+All the utilities are design to read from the standard input and to write the
+standard output.
+This allows you to chain various commands together using pipes.
+Example 1:
+\begin{verbatim}
+bzcat infile.bz2 |
+    fastq_sample -n 50 - |
+    fastq_trim -q 20 - |
+    gzip -c - > outfile.gz
+\end{verbatim}
+This does the following:
+\begin{enumerate}
+    \item \texttt{bzcat infile.bz2}: decompresses a bzip2 compressed file to
+        the standard output.
+    \item \texttt{fastq\_sample -n 50}: samples 50 sequence from the standard
+        input.
+    \item \texttt{fastq\_trim -q 20}: trims the bases of quality less than 20.
+    \item \texttt{gzip -c -}: compresses the stream to gzip format.
+\end{enumerate}
 
-GIVE SOME EXAMPLE
+\paragraph{}
+When using programs that read or write more than one file at a time, one should take
+advantage of the named pipes (FIFOs) available in Unix systems.
+Example 2:
+\begin{verbatim}
+mkfifo pipe1 pipe2
+zcat infile1.gz | fastq_trim -q 20 -o pipe1 - &
+zcat infile1.gz | fastq_trim -q 20 -o pipe2 - &
+fastq_pairs pipe1 pipe2 | gzip -c - > outfile.gz &
+wait
+rm pipe1 pipe2
+\end{verbatim}
+This does the following:
+\begin{enumerate}
+    \item \texttt{mkfifo pipe1 pipe2}: creates the named pipes.
+    \item \texttt{zcat infile1.gz}: decompresses a gzip compressed file to the
+        standard output.
+    \item \texttt{fastq\_trim -q 20 -o pipe1}: quality trims the sequences, and
+        sends the output to the named pipe `\texttt{pipe1}'
+    \item The same thing is done for the other file (e.g. for paired end reads
+        present in two separate files).  Both tasks are sent to the background
+        with the `\&' symbol at the end of each line, and are executed
+        simultaneously.
+    \item \texttt{fastq\_pairs pipe1 pipe2}: both named pipes are read and
+        combined into a file where pairs of reads are interleaved.
+    \item \texttt{wait}: waits  for the commands in the background to finish.
+    \item \texttt{rm pipe1 pipe2}: cleans up the temporary named pipes.
+\end{enumerate}
 
 \section{Programs}
 
 Description of all the programs.
 
+\subsection{Quality assessment}
+
+\subsubsection{summary}
+
+
+\begin{tabularx}{\textwidth}{|X|X|}
+    \hline
+    \textbf{Name}                   & \textbf{Description} \\
+    \hline
+    \hline
+    fastq\_base\_qual\_summary      & Global distribution of base qualities \\
+    fastq\_letter\_pos              & Distribution of letters along the length of sequences \\
+    fastq\_letter\_qual             & Global distribution of base qualities, by letter \\
+    fastq\_qual\_length\_summary    & Distribution of qualities along the length of sequences \\
+    fastq\_read\_qual\_summary      & Distribution of average sequence qualities \\
+    \hline
+\end{tabularx}
+
+\subsubsection{fastq\_base\_qual\_summary}
+
+Global distribution of base qualities.
+
+\subsubsection{fastq\_letter\_pos}
+
+Distribution of letters along the length of sequences.
+
+\subsubsection{fastq\_letter\_qual}
+
+Global distribution of base qualities, by letter.
+
+\subsubsection{fastq\_qual\_length\_summary}
+
+Distribution of qualities along the length of sequences.
+
+\subsubsection{fastq\_read\_qual\_summary}
+
+Distribution of qualities along the length of sequences.
+
+\subsection{Sequence handling}
+
+Distribution of average sequence qualities.
+
+\subsubsection{summary}
+
+\begin{tabularx}{\textwidth}{|X|X|}
+    \hline
+    \textbf{Name}                   & \textbf{Description} \\
+    \hline
+    \hline
+    fastq2fasta                     & Converts a fastq file to a fasta file \\
+    fastq2fastq                     & Conversion between different version of fastq format \\
+    fastq\_fetch                    & Extracts sequences from a fastq file by name \\
+    fastq\_interleave               & Deprecated, use fastq\_pairs instead \\
+    fastq\_pairs                    & Interleaves two mate pair / paired end files or the other way around \\
+    fastq\_revcomp                  & Reverse complements sequences \\
+    fastq\_sample                   & One pass sampling \\
+    fastq\_split                    & Splits sequences in two (deals with a old odd version of paired end fastq) \\
+    fastq\_trim\_adaptors           & Removes adaptors using approximate word matching \\
+    fastq\_trim                     & Quality trimming \\
+    \hline
+\end{tabularx}
+
+\subsubsection{fastq2fasta}
+
+Converts a fastq file to a fasta file.
+
+\subsubsection{fastq2fastq}
+
+Conversion between different version of fastq format.
+
+\subsubsection{fastq\_fetch}
+
+Extracts sequences from a fastq file by name.
+
+\subsubsection{fastq\_interleave}
+
+Deprecated, use fastq\_pairs instead.
+
+\subsubsection{fastq\_pairs}
+
+Interleaves two mate pair / paired end files or the other way around.
+
+\subsubsection{fastq\_revcomp}
+
+Reverse complements sequences.
+
+\subsubsection{fastq\_sample}
+
+One pass sampling.
+
+\subsubsection{fastq\_split}
+
+Splits sequences in two (deals with a old odd version of paired end fastq).
+
+\subsubsection{fastq\_trim\_adaptors}
+
+Removes adaptors using approximate word matching.
+
+\subsubsection{fastq\_trim}
+
+Quality trimming.
+
+\subsection{K-mer utilities}
+
+\subsubsection{summary}
+
+\begin{tabularx}{\textwidth}{|X|X|}
+    \hline
+    \textbf{Name}                   & \textbf{Description} \\
+    \hline
+    \hline
+    kmers\_count                    & Counts kmer occurrences in sequences \\
+    kmers\_count\_tool              & Manipulates count files (binary or text) \\
+    kmers\_remove\_clonal           & Removes identical sequences from Illumina libraries \\
+    \hline
+\end{tabularx}
+
+\subsubsection{kmers\_count}
+
+Counts kmer occurrences in sequences.
+
+\subsubsection{kmers\_count\_tool}
+
+Manipulates count files (binary or text).
+
+\subsubsection{kmers\_remove\_clonal}
+
+Removes identical sequences from Illumina libraries.
+Especially useful for large insert Illumina mate pair libraries in the case of
+de-novo assembly.
+
+\subsection{Methylation data}
+
+Most of this should be deprecated in favour of more standard formats such as
+SAM (for alignments) and BED (for methylation counts).
+The core algorithms are still very important, especially regarding Neighbour
+Quality Standards and other quality related checks.
+
+\subsubsection{summary}
+
+\begin{tabularx}{\textwidth}{|X|X|}
+    \hline
+    \textbf{Name}                   & \textbf{Description} \\
+    \hline
+    \hline
+    bsq2gff                         & Should be deprecated, use SAM format instead \\
+    bsq\_coverage\_distribution     & Should be deprecated, use SAM format instead \\
+    bsq\_empty\_regions\_content    & Should be deprecated, use SAM format instead \\
+    bsq\_methylation\_counts        & Should be deprecated, use SAM format instead \\
+    bsq\_summary                    & Should be deprecated, use SAM format instead \\
+    cg\_fetch                       & Bed format might be preferable (standard) even if it is less compact \\
+    cg\_merge                       & Bed format might be preferable (standard) even if it is less compact \\
+    cg\_meth\_count                 & Bed format might be preferable (standard) even if it is less compact \\
+    cg\_meth\_dist                  & Bed format might be preferable (standard) even if it is less compact \\
+    \hline
+\end{tabularx}
+
+\subsubsection{bsq2gff}
+
+Should be deprecated, use SAM format instead.
+
+\subsubsection{bsq\_coverage\_distribution}
+
+Should be deprecated, use SAM format instead.
+
+\subsubsection{bsq\_empty\_regions\_content}
+
+Should be deprecated, use SAM format instead.
+
+\subsubsection{bsq\_methylation\_counts}
+
+Should be deprecated, use SAM format instead.
+
+\subsubsection{bsq\_summary}
+
+Should be deprecated, use SAM format instead.
+
+\subsubsection{cg\_fetch}
+
+Bed format might be preferable (standard) even if it is less compact.
+
+\subsubsection{cg\_merge}
+
+Bed format might be preferable (standard) even if it is less compact.
+
+\subsubsection{cg\_meth\_count}
+
+Bed format might be preferable (standard) even if it is less compact.
+
+\subsubsection{cg\_meth\_dist}
+
+Bed format might be preferable (standard) even if it is less compact.
+
 \section{Library}
 
-Documentation of the public interface of the C library.
+Documentation of the functions and structures of the C library.
+
+\section{Licence}
+
+This software is available under the terms of the GPL version 3 or later.
+A copy of this licence is distributed with the sources.
 
 \end{document}
 

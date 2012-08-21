@@ -21,6 +21,7 @@ plot_base_quals_by_letter <- function(path)
 
     colors  <- c('green', 'red', 'black', 'blue', 'pink')
 
+    ### FIXME: replace 39 by max(d)
     dists <- 0:39
     max_y <- 0
     tots  <- c()

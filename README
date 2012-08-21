@@ -9,7 +9,9 @@ Sequencing Library, whatever).
 
 This library was and accompanying tools were originally written to handle whole
 genome bisulfite sequencing data generated with the Illumina technology.  Since
-then it has been found useful in a few other situations.
+then it has been found useful in a few other situations, especially when
+preparing sequences for de-novo assembly (quality trimming, adaptors clipping,
+removal of clonal reads, etc).
 
 ###################
 ##               ##
@@ -65,18 +67,18 @@ the name of the tool, then it probably does what you think. If you don't, then
 you probably don't need it.  In doubt try:
 < whatever tool name> -h
 
-In general, these tools are designed to be chained together and read from stdin.
+Also, a summary description of the tools can be found in the manual, located on
+the `doc' directory.
+
+In general, the tools are designed to be chained together and read from stdin.
 For instance:
 
-bzcat infile.bz2 |  fastq_sample - | src/bin/fastq_trim - | gzip - > outfile.gz
+bzcat infile.bz2 |  fastq_sample -n 50 - | fastq_trim -q 10 - | gzip -c - > outfile.gz
 
-This decompresses infile.bz2, randomly samples some of the resulting sequences,
-trim them and compresses the resulting file with gzip.  The tools might need
-some extra options, but you get the idea.
+This decompresses infile.bz2, randomly samples 50 of the resulting sequences,
+quality trim the sequences and compresses the resulting file with gzip.  The
+tools might need some extra options, but you get the idea.
 
 There are also a few helper scripts in src/scripts/ that might be useful.
-
-If one day I have time, I will write a more complete description of the library
-and its tools.
 
 # vim:spell:
