@@ -13,6 +13,7 @@ $(MANPDF): $(srcdir)/$(MANSRC)
 CLEANFILES = \
 	$(MANNAME).aux \
 	$(MANNAME).log \
+	$(MANNAME).out \
 	$(MANNAME).toc \
 	$(MANPDF)
 

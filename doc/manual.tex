@@ -1,5 +1,7 @@
 \documentclass[a4paper,12pt]{article}
+
 \usepackage[latin1]{inputenc}
+\usepackage{hyperref}
 \usepackage{tabularx}
 
 \renewcommand{\arraystretch}{1.5}
@@ -16,6 +18,49 @@
 \tableofcontents
 
 \newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%
+%%%                 %%%
+%%% Getting started %%%
+%%%                 %%%
+%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Getting started}
+
+\subsection{Pre-requisite}
+
+\paragraph{flex} In order to compile libngs and its tools you will need flex
+(the Fast Lexical Analyser).  In most Linux distributions, this comes in the
+`flex' package.  For more information, see \url{http://flex.sourceforge.net/}.
+
+\paragraph{libglib} You will also need libglib and its header files in a
+version greater or equal to 2.16.  On a Debian system, this can be found in the
+libglib2.0-0 and libglib2.0-0-dev packages.  Other distributions probably use
+similar names.  For more information, see \url{http://www.gtk.org/}.
+
+\subsection{Installation}
+
+\paragraph{}
+In brief, for a system-wide installation:
+
+\begin{verbatim}
+./configure
+make
+sudo make install
+\end{verbatim}
+
+\paragraph{}
+For a user-specific installation:
+
+\begin{verbatim}
+./configure --prefix=/somewhere/where/you/have/write/access
+make install
+\end{verbatim}
+
 
 %%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%
@@ -49,7 +94,7 @@ This library includes the following components:
     \item Some algorithms (mainly kmer hashing for now)
 \end{itemize}
 The bulk of the library is written in C.
-The parser are automatically generated with LEX.
+The parsers are automatically generated with LEX.
 
 \paragraph{}
 Various binary programs are implemented using this libraries.
