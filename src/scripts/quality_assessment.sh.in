@@ -25,6 +25,8 @@ function do_qual()
     mkfifo $fifo4
     mkfifo $fifo5
 
+    echo -e "$(date)\tProcessing $i"
+
     # Uncompress and output to fifos
     zcat $1 | tee \
         $fifo2 \
