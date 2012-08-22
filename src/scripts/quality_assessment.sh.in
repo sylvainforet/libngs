@@ -1,0 +1,77 @@
+#!/bin/bash
+
+export PATH=$PATH:@bindir@
+
+function do_qual()
+{
+    # Check the input
+    [[ $1 ]] || return 1
+    # Set up the output name
+    name=$(basename $1)
+
+    # Create temporary directory for fifos
+    tmpd=$(mktemp -d --tmpdir=$(pwd))
+    [[ -d $tmpd ]] || return 1
+
+    # Setup the fifos
+    fifo1=$tmpd/seq1
+    fifo2=$tmpd/seq2
+    fifo3=$tmpd/seq3
+    fifo4=$tmpd/seq4
+    fifo5=$tmpd/seq5
+    mkfifo $fifo1
+    mkfifo $fifo2
+    mkfifo $fifo3
+    mkfifo $fifo4
+    mkfifo $fifo5
+
+    # Uncompress and output to fifos
+    zcat $1 | tee \
+        $fifo2 \
+        $fifo3 \
+        $fifo4 \
+        $fifo5 \
+        > $fifo1 &
+
+    # Process quality checks in parallel
+    fastq_base_qual_summary    $fifo1 > ${name}.base_qual_summary &
+    fastq_read_qual_summary    $fifo5 > ${name}.read_qual_summary &
+    fastq_letter_qual          $fifo3 > ${name}.letter_qual       &
+    fastq_letter_pos           $fifo2 > ${name}.letter_pos        &
+    fastq_qual_length_summary  $fifo4 > ${name}.length_summary    &
+
+    # Wait for background jobs to finish
+    wait
+
+    # Cleanup the temporary directory with the fifos
+    rm -rf $tmpd
+}
+
+for i in $@
+do
+    do_qual $i
+done
+
+R --quiet --no-save --args $@ <<EOF
+pdf('report.pdf')
+
+args <- commandArgs(TRUE)
+if (length(args) == 0) quit()
+
+source('@r_scriptsdir@/plot_qual.R')
+
+for (i in args)
+{
+    base <- basename(i)
+    cat(i, base, '\n')
+
+    plot_base_quals            (paste(base, '.base_qual_summary', sep=''), main=base)
+    plot_base_quals_by_letter  (paste(base, '.letter_qual'      , sep=''), main=base)
+    plot_read_quals            (paste(base, '.read_qual_summary', sep=''), main=base)
+    plot_quality_length_heatmap(paste(base, '.length_summary'   , sep=''), main=base)
+    plot_quality_length_persp  (paste(base, '.length_summary'   , sep=''), main=base)
+    plot_letter_pos            (paste(base, '.letter_pos'       , sep=''), main=base)
+}
+
+dev.off()
+EOF

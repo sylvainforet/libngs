@@ -5,6 +5,7 @@ bin_SCRIPTS = \
 	kmer_counts.py \
 	methratio2gff.py \
 	methratios2table.py \
+	quality_assessment.sh \
 	table2fastq.py
 
 EXTRA_DIST = \
@@ -14,9 +15,10 @@ EXTRA_DIST = \
 	kmer_counts.py \
 	methratio2gff.py \
 	methratios2table.py \
-	table2fastq.py \
 	plot_coverage.R \
-	plot_qual.R
+	plot_qual.R \
+	quality_assessment.sh.in \
+	table2fastq.py
 
 fastq_sample_mate_pairs.sh: fastq_sample_mate_pairs.sh.in
 	sed \
@@ -29,8 +31,15 @@ r_scripts_DATA = \
 	plot_coverage.R \
 	plot_qual.R
 
+quality_assessment.sh: quality_assessment.sh.in
+	sed \
+		-e 's|@r_scriptsdir[@]|$(r_scriptsdir)|g' \
+		-e 's|@bindir[@]|$(bindir)|g' \
+		< "$<" > "$@"
+
 CLEANFILES = \
-	fastq_sample_mate_pairs.sh
+	fastq_sample_mate_pairs.sh \
+	quality_assessment.sh
 
 MAINTAINERCLEANFILES = \
 	Makefile.in

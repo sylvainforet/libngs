@@ -25,6 +25,7 @@
 
 #include "ngs_fastq.h"
 
+/* TODO allocate this dynamically to enable qualities larger than 60 */
 #define N_QUAL 60
 
 typedef struct _CallbackData CallbackData;
@@ -175,7 +176,7 @@ iter_func (FastqSeq       *fastq,
 }
 
 /**
- * Faster but no less robust
+ * Faster but less robust
  */
 
 static int
@@ -226,18 +227,21 @@ print_letter_qual (CallbackData *data)
   int i;
 
   /* Header */
-  g_print ("A\t"
+  g_print ("qual\t"
+           "A\t"
            "T\t"
            "G\t"
            "C\t"
            "N\n");
   for (i = 0; i < N_QUAL; i++)
     {
-      g_print ("%ld\t"
+      g_print ("%d\t"
+               "%ld\t"
                "%ld\t"
                "%ld\t"
                "%ld\t"
                "%ld\n",
+               i,
                data->a_qual[i],
                data->t_qual[i],
                data->g_qual[i],

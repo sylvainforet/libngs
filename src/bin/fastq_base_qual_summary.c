@@ -26,6 +26,7 @@
 #include "ngs_fastq.h"
 
 
+/* TODO allocate this dynamically to enable qualities larger than 60 */
 #define N_QUAL 60
 
 typedef struct _CallbackData CallbackData;
