@@ -64,6 +64,7 @@ AC_CONFIG_FILES([
 	src/bin/Makefile
 	src/libngs/Makefile
 	src/scripts/Makefile
+	src/pipelines/Makefile
 	src/test/Makefile
 	])
 AC_OUTPUT

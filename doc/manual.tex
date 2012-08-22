@@ -48,15 +48,20 @@ similar names.  For more information, see \url{http://www.gtk.org/}.
 In brief, for a system-wide installation:
 
 \begin{verbatim}
+./autogen.sh
 ./configure
 make
 sudo make install
 \end{verbatim}
 
+Note: you only need to run \texttt{./autogen.sh} if the \texttt{configure} file
+does not exist.
+
 \paragraph{}
 For a user-specific installation:
 
 \begin{verbatim}
+./autogen.sh
 ./configure --prefix=/somewhere/where/you/have/write/access
 make install
 \end{verbatim}
@@ -104,6 +109,11 @@ These can be found in \texttt{src/bin}.
 Finally, a few shell, python and R scripts wrapping these binary utilities or
 using their outputs are also provided.
 These scripts are located in \texttt{src/scripts}.
+
+\paragraph{}
+Examples of pipelines using the various scripts and binaries can be found in
+\texttt{src/pipelines}.
+See also the description of pipelines in section \ref{pipelines}.
 
 %%%%%%%%%%%
 %%%%%%%%%%%
@@ -164,6 +174,9 @@ This does the following:
     \item \texttt{wait}: waits  for the commands in the background to finish.
     \item \texttt{rm pipe1 pipe2}: cleans up the temporary named pipes.
 \end{enumerate}
+
+Additional examples can be found in the \texttt{pipelines} directory (see
+section \ref{pipelines}).
 
 %%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%
@@ -403,6 +416,58 @@ Bed format might be preferable (standard) even if it is less compact.
 \subsubsection{cg\_meth\_dist}
 
 Bed format might be preferable (standard) even if it is less compact.
+
+%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%
+%%%           %%%
+%%% Pipelines %%%
+%%%           %%%
+%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%
+
+\section{Pipelines}
+
+\label{pipelines}
+
+Pipelines are examples of shell scripts tying various utilities together.
+They are not necessarily designed to be used directly, but rather should be
+used as templates that can be tuned to one's particular needs.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                       %%
+%% quality_assessment.sh %%
+%%                       %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{quality\_assessment.sh}
+
+\paragraph{}
+This script goes sequentially through a number of gzip compressed fastq files,
+and for each file, runs various quality assessment utilities in parallel.
+A report in pdf format is generated.
+
+\paragraph{}
+Possible customisations include the addition or removal of quality assessment
+utilities, and running all the files in parallel for systems with enough CPUs.
+
+%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%
+%%             %%
+%% trimming.sh %%
+%%             %%
+%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%
+
+\subsection{trimming.sh}
+
+This script defines a few simple functions that do the typical quality
+filtering on single end, paired end and mate pair libraries.
+The various quality and length thresholds should be tunned to particular
+datasets.
 
 %%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%

@@ -1,0 +1,121 @@
+#!/bin/bash
+
+export PATH=$PATH:@bindir@
+
+function trim_single_end()
+{
+    in1=$1
+    qual0=$2
+    out=$(basename $1)
+    tmpd=$(mktemp -d --tmpdir=$(pwd))
+
+    MIN_SIZE=81
+    MIN_QUAL=25
+    WINDOW_SIZE=10
+    WINDOW_QUAL=30
+
+    zcat $in1 | \
+        fastq_trim_adaptors -s 16 -m 2 -l 14 adaptors.fasta - | \
+        fastq_trim --fastq_qual0 $qual0  -q $MIN_QUAL -w $WINDOW_SIZE -n $WINDOW_QUAL -l $MIN_SIZE -N -k - | \
+        pigz -p 4 -c - > $out
+
+    rm -rf $tmpd
+}
+
+function trim_paired_end()
+{
+    in1=$1
+    in2=$2
+    qual0=$3
+    out=$(basename $1)
+    single=$(basename $1).single.gz
+    tmpd=$(mktemp -d --tmpdir=$(pwd))
+    fifo1=$tmpd/seq1
+    fifo2=$tmpd/seq2
+    fifo3=$tmpd/seq3
+    mkfifo $fifo1
+    mkfifo $fifo2
+    mkfifo $fifo3
+
+    MIN_SIZE=61
+    MIN_QUAL=20
+
+    zcat $in1 | \
+        fastq_trim_adaptors -s 16 -m 2 -l 14 adaptors.fasta - | \
+        fastq_trim --fastq_qual0 $qual0  -q $MIN_QUAL -l $MIN_SIZE -N -k -o $fifo1 - &
+
+    zcat $in2 | \
+        fastq_trim_adaptors -s 16 -m 2 -l 14 adaptors.fasta - | \
+        fastq_trim  --fastq_qual0 $qual0 -q $MIN_QUAL -l $MIN_SIZE -N -k -o $fifo2 - &
+
+    fastq_pairs -s $fifo3 -m $MIN_SIZE $fifo1 $fifo2 | \
+        pigz -p 4 -c - > $out &
+
+    cat $fifo3 | \
+        pigz -p 4 -c - > $single &
+
+    wait
+
+    rm -rf $tmpd
+}
+
+function trim_mate_pairs()
+{
+    in1=$1
+    in2=$2
+    out=$(basename $1)
+    tmpd=$(mktemp -d --tmpdir=$(pwd))
+    seq1=$tmpd/seq1
+    seq2=$tmpd/seq2
+    clonout=$tmpd/clonout
+    clonout1=$tmpd/clonout.1
+    clonout2=$tmpd/clonout.2
+    seq3=$tmpd/seq3
+    seq4=$tmpd/seq4
+    mkfifo $seq1
+    mkfifo $seq2
+    mkfifo $seq3
+    mkfifo $seq4
+
+    MIN_SIZE=61
+    MIN_QUAL=20
+
+    zcat $in1 | \
+        fastq_trim_adaptors -s 16 -m 2 -l 14 -o $seq1 adaptors.fasta - &
+    zcat $in2 | \
+        fastq_trim_adaptors -s 16 -m 2 -l 14 -o $seq2 adaptors.fasta - &
+    kmers_remove_clonal -o $clonout -c 1,30 -c 15,45 -c 30,60 $seq1 $seq2
+
+    fastq_trim --fastq_qual0 @ -q $MIN_QUAL -l $MIN_SIZE -N -k -o $seq3 $clonout1 &
+    fastq_trim --fastq_qual0 @ -q $MIN_QUAL -l $MIN_SIZE -N -k -o $seq4 $clonout2 &
+    fastq_pairs -m $MIN_SIZE $seq3 $seq4 | \
+        fastq_revcomp - | \
+        pigz -p 8 -c - > $out
+
+    wait
+
+    rm -rf $tmpd
+}
+
+##### Trim PE #####
+
+#trim_single_end se_lib1_seq1.fastq.gz ! &
+#trim_single_end se_lib2_seq1.fastq.gz ! &
+#trim_single_end se_lib3_seq1.fastq.gz ! &
+#wait
+
+##### Trim PE #####
+
+#trim_paired_end pe_lib1_seq1.fastq.gz pe_lib1_seq2.fastq.gz ! &
+#trim_paired_end pe_lib2_seq1.fastq.gz pe_lib2_seq2.fastq.gz ! &
+#wait
+
+##### Trim MP #####
+
+#trim_paired_end mp_lib1_seq1.fastq.gz mp_lib1_seq2.fastq.gz ! &
+#trim_paired_end mp_lib2_seq1.fastq.gz mp_lib2_seq2.fastq.gz ! &
+#wait
+
+##### Merge #####
+
+
