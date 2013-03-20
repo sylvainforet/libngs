@@ -192,7 +192,7 @@ iter_func (FastqSeq     *fastq,
   int     start;
   int     end;
 
-  if (data->tot_trim > fastq->size)
+  if (fastq->size - data->tot_trim <= data->len)
     {
       if (data->keep)
         {
@@ -205,8 +205,7 @@ iter_func (FastqSeq     *fastq,
           if (error != NULL)
             goto error;
         }
-      else
-        return 1;
+      return 1;
     }
 
   end   = fastq->size - data->end;
