@@ -192,12 +192,21 @@ iter_func (FastqSeq     *fastq,
   int     start;
   int     end;
 
-  if (data->tot_trim > fastq->size)
+  if (data->tot_trim > fastq->size & data->keep)
     {
-      g_printerr ("[ERROR] trimming more than sequence length "
-                  "(trim: %d - length: %d)\n",
-                  data->tot_trim, fastq->size);
-      exit (1);
+      if (data->keep)
+        {
+          fastq_write (data->output_channel,
+                       NULL,
+                       fastq->name,
+                       "N",
+                       fastq_qual_min_str,
+                       &error);
+          if (error != NULL)
+            goto error;
+        }
+      else
+        return 1;
     }
 
   end   = fastq->size - data->end;
