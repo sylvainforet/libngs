@@ -24,6 +24,7 @@ bin_PROGRAMS = \
 	fastq_revcomp \
 	fastq_sample \
 	fastq_split \
+	fastq_split_reads \
 	fastq_trim \
 	fastq_trim_adaptors \
 	bsq2gff \
@@ -103,6 +104,11 @@ fastq_split_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la
 fastq_split_SOURCES = \
 	fastq_split.c
+
+fastq_split_reads_LDADD = \
+	$(top_builddir)/src/libngs/libngs.la
+fastq_split_reads_SOURCES = \
+	fastq_split_reads.c
 
 fastq_trim_LDADD = \
 	$(top_builddir)/src/libngs/libngs.la

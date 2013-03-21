@@ -21,8 +21,8 @@
  */
 
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "ngs_fastq.h"
 
@@ -31,13 +31,10 @@ typedef struct _CallbackData CallbackData;
 struct _CallbackData
 {
   char       *input_path;
+  char       *output_path;
   GIOChannel *output_channel;
-  GString    *buffer;
 
-  char       *prefix;
-  int         chunks;
-  int         count;
-  int         reads;
+  int         use_stdout: 1;
 };
 
 static int  iter_func  (FastqSeq       *fastq,
@@ -67,19 +64,22 @@ main (int    argc,
       error = NULL;
     }
 
-  /* Cleanup */
   if (data.output_channel)
     {
-      g_io_channel_shutdown (data.output_channel, TRUE, &error);
-      if (error)
+      if (!data.use_stdout)
         {
-          g_printerr ("[ERROR] Closing sequence output file failed: %s\n", error->message);
-          g_error_free (error);
-          error = NULL;
+          g_io_channel_shutdown (data.output_channel, TRUE, &error);
+          if (error)
+            {
+              g_printerr ("[ERROR] Closing output file failed: %s\n", error->message);
+              g_error_free (error);
+              error = NULL;
+            }
         }
       g_io_channel_unref (data.output_channel);
     }
-  g_string_free (data.buffer, TRUE);
+  if (data.output_path)
+    g_free (data.output_path);
 
   return 0;
 }
@@ -91,20 +91,16 @@ parse_args (CallbackData   *data,
 {
   GOptionEntry entries[] =
     {
-      {"prefix", 'p', 0, G_OPTION_ARG_STRING, &data->prefix, "Prefix for the output chunks", NULL},
-      {"reads",  'r', 0, G_OPTION_ARG_INT,    &data->reads,  "Number of reads per chunk",    NULL},
+      {"output" , 'o', 0, G_OPTION_ARG_FILENAME, &data->output_path, "Output path", NULL},
       {NULL}
     };
   GError         *error = NULL;
   GOptionContext *context;
 
-  data->output_channel = NULL;
-  data->prefix         = NULL;
-  data->chunks         = 0;
-  data->count          = 0;
-  data->reads          = G_MAXINT;
+  data->output_path = NULL;
+  data->use_stdout  = 1;
 
-  context = g_option_context_new ("FILE - Converts between various flavours of fastq formats");
+  context = g_option_context_new ("FILE - Splits fastq files where both mate pairs are in the same sequence");
   g_option_context_add_group (context, get_fastq_option_group ());
   g_option_context_add_main_entries (context, entries, NULL);
   if (!g_option_context_parse (context, argc, argv, &error))
@@ -121,12 +117,23 @@ parse_args (CallbackData   *data,
     }
   data->input_path = (*argv)[1];
 
-  if (!data->prefix)
-    data->prefix = "chunk";
-
-  data->count = data->reads + 1;
-
-  data->buffer = g_string_sized_new (1024);
+  if (!data->output_path)
+    data->output_path = g_strdup ("-");
+  if (data->output_path[0] == '-' && data->output_path[1] == '\0')
+    {
+      data->use_stdout      = 1;
+      data->output_channel = g_io_channel_unix_new (STDOUT_FILENO);
+    }
+  else
+    {
+      data->use_stdout      = 0;
+      data->output_channel = g_io_channel_new_file (data->output_path, "w", &error);
+      if (error)
+        {
+          g_printerr ("[ERROR] Opening sequence output file failed: %s\n", error->message);
+          exit (1);
+        }
+    }
 }
 
 static int
@@ -134,48 +141,41 @@ iter_func (FastqSeq     *fastq,
            CallbackData *data)
 {
   GError  *error = NULL;
+  GString *buffer;
   int      ret   = 1;
 
-  if (data->count > data->reads)
-    {
-      char *path;
+  buffer = g_string_sized_new (512);
 
-      /* Close current output */
-      if (data->output_channel)
-        {
-          g_io_channel_shutdown (data->output_channel, TRUE, &error);
-          if (error)
-            {
-              g_printerr ("[ERROR] Closing sequence output file failed: %s\n", error->message);
-              g_error_free (error);
-              error = NULL;
-            }
-          g_io_channel_unref (data->output_channel);
-        }
+  buffer = g_string_append_c (buffer, '@');
+  buffer = g_string_append (buffer, fastq->name);
+  buffer = g_string_append_c (buffer, '\n');
+  buffer = g_string_append_len (buffer, fastq->seq, fastq->size / 2);
+  buffer = g_string_append_c (buffer, '\n');
 
-      /* Open new output */
-      path = g_strdup_printf ("%s_%06d", data->prefix, data->chunks);
-      data->output_channel = g_io_channel_new_file (path, "w", &error);
-      g_free (path);
-      if (error)
-        {
-          data->output_channel = NULL;
-          g_printerr ("[ERROR] Opening sequence output file failed: %s\n", error->message);
-          g_error_free (error);
-          return 0;
-        }
+  buffer = g_string_append_c (buffer, '+');
+  buffer = g_string_append (buffer, fastq->name);
+  buffer = g_string_append_c (buffer, '\n');
+  buffer = g_string_append_len (buffer, fastq->qual, fastq->size / 2);
+  buffer = g_string_append_c (buffer, '\n');
 
-      data->chunks += 1;
-      data->count = 1;
-    }
+  fastq->name[strlen (fastq->name) - 1] = '2';
+  buffer = g_string_append_c (buffer, '@');
+  buffer = g_string_append (buffer, fastq->name);
+  buffer = g_string_append_c (buffer, '\n');
+  buffer = g_string_append (buffer, fastq->seq + fastq->size / 2);
+  buffer = g_string_append_c (buffer, '\n');
 
-  /* Write current read */
-  fastq_write (data->output_channel,
-               data->buffer,
-               fastq->name,
-               fastq->seq,
-               fastq->qual,
-               &error);
+  buffer = g_string_append_c (buffer, '+');
+  buffer = g_string_append (buffer, fastq->name);
+  buffer = g_string_append_c (buffer, '\n');
+  buffer = g_string_append (buffer, fastq->qual + fastq->size / 2);
+  buffer = g_string_append_c (buffer, '\n');
+
+  g_io_channel_write_chars (data->output_channel,
+                            buffer->str,
+                            -1,
+                            NULL,
+                            &error);
   if (error)
     {
       g_printerr ("[ERROR] Writing sequence failed: %s\n", error->message);
@@ -183,11 +183,10 @@ iter_func (FastqSeq     *fastq,
       error = NULL;
       ret   = 0;
     }
-
-  data->count += 1;
+  g_string_free (buffer, TRUE);
 
   return ret;
 }
 
 /* vim:ft=c:expandtab:sw=4:ts=4:sts=4:cinoptions={.5s^-2n-2(0:
-*/
+ */
