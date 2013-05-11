@@ -115,10 +115,10 @@ parse_args (CallbackData   *data,
 {
   GOptionEntry entries[] =
     {
-      {"chunks", 'c', 0, G_OPTION_ARG_INT,    &data->chunks, "Number of chunks (not compatible with -r)",             NULL},
-      {"prefix", 'f', 0, G_OPTION_ARG_STRING, &data->prefix, "Prefix for the output chunks (not compatible with -c)", NULL},
-      {"paired", 'p', 0, G_OPTION_ARG_NONE,   &data->paired, "Output reads in pairs",                                 NULL},
-      {"reads",  'r', 0, G_OPTION_ARG_INT,    &data->reads,  "Number of reads per chunk",                             NULL},
+      {"chunks", 'c', 0, G_OPTION_ARG_INT,    &data->chunks, "Number of chunks (not compatible with -r)",          NULL},
+      {"prefix", 'f', 0, G_OPTION_ARG_STRING, &data->prefix, "Prefix for the output chunks",                       NULL},
+      {"paired", 'p', 0, G_OPTION_ARG_NONE,   &data->paired, "Output reads in pairs",                              NULL},
+      {"reads",  'r', 0, G_OPTION_ARG_INT,    &data->reads,  "Number of reads per chunk (not compatible with -c)", NULL},
       {NULL}
     };
   GError         *error = NULL;
