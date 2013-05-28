@@ -25,7 +25,7 @@ plot_base_quals <- function(path, ...)
 plot_base_quals_by_letter <- function(path, plotNs=FALSE, ...)
 {
     d <- read.table(path, header=TRUE)
-    d <- cbind(d, all=(d$A + d$T + d$G + d$C + d$N))
+    d <- cbind(d, all=sum(as.numeric(c(d$A, d$T, d$G, d$C, d$N))))
     d <- d[d$all > 0, ]
 
     colors   <- c('green', 'red', 'black', 'blue')
@@ -44,7 +44,7 @@ plot_base_quals_by_letter <- function(path, plotNs=FALSE, ...)
     for (letter in 2:(nLetters + 1))
     {
         counts <- d[, letter]
-        tot    <- sum(as.numeric(counts))
+        tot    <- as.numeric(sum(as.numeric(counts)))
         tots   <- c(tots, tot)
         props  <- counts / tot
         percs  <- 100.0 * props
